@@ -6,7 +6,10 @@ import { collectDownloads } from "./collectors/downloads.js";
 import { collectEmailItems } from "./collectors/email.js";
 import { collectGitHubItems } from "./collectors/github.js";
 import { collectMockItems } from "./collectors/mock.js";
-import { HKUMoodleProvider } from "./collectors/moodle.js";
+import {
+  HKUMoodleProvider,
+  moodleOptionsFromEnvironment,
+} from "./collectors/moodle.js";
 import { defaultSettings } from "./config/settings.js";
 import { createMorningReport } from "./briefing/generateBriefing.js";
 import { JevDecisionEngine } from "./decisions/engine.js";
@@ -56,7 +59,7 @@ const isMissingPathError = (error: unknown): boolean =>
   error.code === "ENOENT";
 
 const collectRealItems = async (): Promise<AgentItem[]> => {
-  const moodle = new HKUMoodleProvider();
+  const moodle = new HKUMoodleProvider(moodleOptionsFromEnvironment());
   const downloads = await collectDownloads().catch((error: unknown) => {
     if (isMissingPathError(error)) return [];
     throw error;

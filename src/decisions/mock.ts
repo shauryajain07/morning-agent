@@ -77,21 +77,22 @@ export class MockDecisionEngine implements DecisionEngine {
         ...(typeof item.metadata.course === "string" ? { course: item.metadata.course } : {}),
         confidence,
       };
-      records.push(record(item, "shouldDownloadFile", downloadDecision));
+      if (isCourseFile) records.push(record(item, "shouldDownloadFile", downloadDecision));
 
-      const createEvent = item.metadata.kind === "assignment";
-      const eventStart = item.deadline === undefined
-        ? undefined
-        : new Date(item.deadline.getTime() - 60 * 60 * 1000).toISOString();
-      const calendarDecision: CalendarActionDecision = {
-        createEvent,
-        ...(createEvent ? { title: item.title } : {}),
-        ...(createEvent && eventStart !== undefined && item.deadline !== undefined
-          ? { startTime: eventStart, endTime: item.deadline.toISOString() }
-          : {}),
-        confidence: createEvent ? 0.82 : confidence,
-      };
-      records.push(record(item, "shouldCreateCalendarEvent", calendarDecision));
+      if (item.metadata.kind === "assignment") {
+        const eventStart = item.deadline === undefined
+          ? undefined
+          : new Date(item.deadline.getTime() - 60 * 60 * 1000).toISOString();
+        const calendarDecision: CalendarActionDecision = {
+          createEvent: true,
+          title: item.title,
+          ...(eventStart === undefined || item.deadline === undefined
+            ? {}
+            : { startTime: eventStart, endTime: item.deadline.toISOString() }),
+          confidence: 0.82,
+        };
+        records.push(record(item, "shouldCreateCalendarEvent", calendarDecision));
+      }
     }
 
     if (item.source === "calendar") {

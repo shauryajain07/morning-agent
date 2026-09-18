@@ -53,6 +53,17 @@ const courseCriteria: Record<string, string | null> = {
   other: "No configured course clearly fits.",
 };
 
+const moodleKind = (item: AgentItem): string | undefined => {
+  const value = item.metadata.kind;
+  return typeof value === "string" ? value : undefined;
+};
+
+const isMoodleAssignment = (item: AgentItem): boolean =>
+  item.source === "moodle" && moodleKind(item) === "assignment";
+
+const isMoodleCourseFile = (item: AgentItem): boolean =>
+  item.source === "moodle" && moodleKind(item) === "course_file";
+
 const toJsonValue = (value: unknown): JsonValue => {
   if (value === null) return null;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
@@ -68,10 +79,26 @@ const toJsonValue = (value: unknown): JsonValue => {
   throw new TypeError(`Unsupported Jev state value: ${typeof value}`);
 };
 
+const sanitizeUrlForJev = (value: string): string => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "[URL redacted]";
+    // Jev only needs page identity for classification. Query strings may contain tokens,
+    // tracking identifiers, or authenticated Moodle parameters.
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "[URL redacted]";
+  }
+};
+
 const toState = (item: AgentItem): EntryType => {
   const safeMetadata: Record<string, unknown> = {};
   for (const [key, metadataValue] of Object.entries(item.metadata)) {
     if (/^(path|sourcePath|destinationPath)$/iu.test(key)) continue;
+    if (/^(href|url|link)$/iu.test(key) && typeof metadataValue === "string") {
+      safeMetadata[key] = sanitizeUrlForJev(metadataValue);
+      continue;
+    }
     if (
       key === "filename" &&
       typeof metadataValue === "string" &&
@@ -85,6 +112,7 @@ const toState = (item: AgentItem): EntryType => {
 
   const safeItem: AgentItem = {
     ...item,
+    ...(item.url === undefined ? {} : { url: sanitizeUrlForJev(item.url) }),
     ...(item.source === "downloads" && /(secret|credential|token|password)/iu.test(item.title)
       ? { title: "[sensitive downloaded file]" }
       : {}),
@@ -134,13 +162,15 @@ const createQuestions = (item: AgentItem): Questions => {
       "Does this calendar or Moodle item contain or represent a real deadline?",
       { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
     );
-    questions.createEvent = noul(
-      "Should the application suggest creating a calendar event for this item?",
-      { true: "A calendar reminder would help the user.", false: "No calendar event is needed." },
-    );
+    if (item.source === "calendar" || isMoodleAssignment(item)) {
+      questions.createEvent = noul(
+        "Should the application suggest creating a calendar event for this item?",
+        { true: "A calendar reminder would help the user.", false: "No calendar event is needed." },
+      );
+    }
   }
 
-  if (item.source === "moodle") {
+  if (isMoodleCourseFile(item)) {
     questions.download = noul(
       "Should the application download or retain this Moodle course file automatically?",
       { true: "It is a useful course file and safe to download.", false: "Do not download it automatically." },
@@ -247,7 +277,7 @@ export class JevDecisionEngine implements DecisionEngine {
       records.push(record(item, "detectDeadline", deadlineDecision, evaluation.model));
     }
 
-    if (item.source === "moodle") {
+    if (isMoodleCourseFile(item)) {
       const downloadValue = readNoul(answerMap, "download");
       const fileType = readChoice(answerMap, "fileType");
       const course = readChoice(answerMap, "course");
@@ -260,7 +290,7 @@ export class JevDecisionEngine implements DecisionEngine {
       records.push(record(item, "shouldDownloadFile", downloadDecision, evaluation.model));
     }
 
-    if (item.source === "calendar" || item.source === "moodle") {
+    if (item.source === "calendar" || isMoodleAssignment(item)) {
       const createEventValue = readNoul(answerMap, "createEvent");
       const deadline = item.deadline?.toISOString();
       const eventStart = item.deadline === undefined

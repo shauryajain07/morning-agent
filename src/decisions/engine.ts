@@ -62,7 +62,28 @@ const toJsonValue = (value: unknown): JsonValue => {
 };
 
 const toState = (item: AgentItem): EntryType => {
-  const value = toJsonValue(item);
+  const safeMetadata: Record<string, unknown> = {};
+  for (const [key, metadataValue] of Object.entries(item.metadata)) {
+    if (/^(path|sourcePath|destinationPath)$/iu.test(key)) continue;
+    if (
+      key === "filename" &&
+      typeof metadataValue === "string" &&
+      /(secret|credential|token|password)/iu.test(metadataValue)
+    ) {
+      safeMetadata[key] = "[sensitive filename redacted]";
+      continue;
+    }
+    safeMetadata[key] = metadataValue;
+  }
+
+  const safeItem: AgentItem = {
+    ...item,
+    ...(item.source === "downloads" && /(secret|credential|token|password)/iu.test(item.title)
+      ? { title: "[sensitive downloaded file]" }
+      : {}),
+    metadata: safeMetadata,
+  };
+  const value = toJsonValue(safeItem);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError("AgentItem must serialize to a JSON object for Jev");
   }

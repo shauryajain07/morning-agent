@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "morning": "tsx src/index.ts",
+    "morning": "node --env-file=.env --import=tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json"

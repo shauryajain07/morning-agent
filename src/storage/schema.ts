@@ -1,0 +1,54 @@
+import type Database from "better-sqlite3";
+
+/**
+ * The Phase 1 schema is deliberately small and uses stable application-level
+ * identifiers so that the store can be initialized more than once safely.
+ */
+export const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS seen_item_fingerprints (
+  fingerprint TEXT PRIMARY KEY NOT NULL,
+  seen_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS deadlines (
+  fingerprint TEXT PRIMARY KEY NOT NULL,
+  item_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  title TEXT NOT NULL,
+  deadline_at TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS deadlines_item_id_idx
+  ON deadlines (item_id);
+
+CREATE TABLE IF NOT EXISTS decision_outputs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  output_json TEXT NOT NULL,
+  model TEXT NOT NULL,
+  decided_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS decision_outputs_item_decision_idx
+  ON decision_outputs (item_id, decision, id DESC);
+
+CREATE TABLE IF NOT EXISTS action_records (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  description TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS action_records_item_id_idx
+  ON action_records (item_id);
+`;
+
+export function initializeSchema(database: Database.Database): void {
+  database.pragma("foreign_keys = ON");
+  database.exec(SCHEMA_SQL);
+}

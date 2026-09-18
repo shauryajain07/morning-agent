@@ -7,7 +7,8 @@ export type AppSettings = {
 };
 
 export const defaultSettings: AppSettings = {
-  databasePath: join(process.cwd(), ".data", "morning-agent.sqlite"),
+  databasePath:
+    process.env.MORNING_AGENT_DB_PATH ?? join(process.cwd(), ".data", "morning-agent.sqlite"),
   timezone: process.env.TZ ?? "Asia/Hong_Kong",
   typesafeModel: "jev-latest",
 };

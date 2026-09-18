@@ -6,6 +6,7 @@ export type BriefingInput = {
   decisions: DecisionRecord[];
   actions: ActionRecord[];
   newDeadlineIds: Set<string>;
+  newItemIds: Set<string>;
 };
 
 export type MorningReport = {
@@ -78,10 +79,11 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
       urgent.push(item.title);
     }
 
-    if (item.source === "github") github.push(item.title);
+    if (item.source === "github" && input.newItemIds.has(item.id)) github.push(item.title);
 
     if (
       item.source === "moodle" &&
+      input.newItemIds.has(item.id) &&
       (item.metadata.kind === "course_file" || item.metadata.kind === "assignment")
     ) {
       academic.push(item.title);
@@ -90,7 +92,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     if (item.source === "email") {
       const emailDecision = decisionFor(input.decisions, item.id, "importantEmail");
       if (emailDecision?.output !== undefined && "important" in emailDecision.output) {
-        if (emailDecision.output.important) emails.push(item.title);
+        if (emailDecision.output.important && input.newItemIds.has(item.id)) emails.push(item.title);
       }
     }
 

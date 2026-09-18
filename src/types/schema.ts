@@ -14,7 +14,21 @@ export const agentItemSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 
-export const parseAgentItem = (input: unknown): AgentItem => agentItemSchema.parse(input);
+export const parseAgentItem = (input: unknown): AgentItem => {
+  const parsed = agentItemSchema.parse(input);
+  return {
+    id: parsed.id,
+    source: parsed.source,
+    title: parsed.title,
+    metadata: parsed.metadata,
+    ...(parsed.content === undefined ? {} : { content: parsed.content }),
+    ...(parsed.url === undefined ? {} : { url: parsed.url }),
+    ...(parsed.createdAt === undefined ? {} : { createdAt: parsed.createdAt }),
+    ...(parsed.deadline === undefined ? {} : { deadline: parsed.deadline }),
+  };
+};
 
-export const parseAgentItems = (input: unknown): AgentItem[] =>
-  z.array(agentItemSchema).parse(input);
+export const parseAgentItems = (input: unknown): AgentItem[] => {
+  const parsed = z.array(agentItemSchema).parse(input);
+  return parsed.map((item) => parseAgentItem(item));
+};

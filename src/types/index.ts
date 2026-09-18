@@ -115,11 +115,11 @@ export type ActionRecord = {
   createdAt: Date;
 };
 
-export type MoodleProvider = {
+export interface MoodleProvider {
   getAnnouncements(): Promise<AgentItem[]>;
   getAssignments(): Promise<AgentItem[]>;
   getCourseFiles(): Promise<AgentItem[]>;
-};
+}
 
 export type RunOptions = {
   dryRun: boolean;

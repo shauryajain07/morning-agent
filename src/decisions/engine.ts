@@ -9,7 +9,14 @@ import type {
   RequiresActionDecision,
   Urgency,
 } from "../types/index.js";
-import type { EntryType, JsonValue } from "@typesafe-ai/sdk";
+import type {
+  ChoiceResponse,
+  EntryType,
+  JsonValue,
+  NoulResponse,
+  Questions,
+  ScoreResponse,
+} from "@typesafe-ai/sdk";
 import { choice, noul } from "./jevClient.js";
 import { JevClient, type JevEvaluator } from "./jevClient.js";
 
@@ -95,36 +102,98 @@ const toState = (item: AgentItem): EntryType => {
 
 const confidenceOfNoul = (value: number): number => Math.max(value, 1 - value);
 
-const createQuestions = () => ({
-  actionRequired: noul(
-    "Does this item require a concrete action from the user?",
-    { true: "The user must do something specific.", false: "No action is needed." },
-  ),
-  urgency: choice("What is the appropriate urgency for the action?", urgencyCriteria),
-  important: noul(
-    "Is this item important enough to include in a concise morning briefing?",
-    { true: "It deserves the user's attention.", false: "It can be omitted from the briefing." },
-  ),
-  emailCategory: choice("Which category best describes this item?", categoryCriteria),
-  requiresReply: noul(
-    "Does the user need to reply to this item?",
-    { true: "A reply or response is expected.", false: "No reply is expected." },
-  ),
-  hasDeadline: noul(
-    "Does this item contain or represent a real deadline?",
-    { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
-  ),
-  download: noul(
-    "Should the application download or retain this course file automatically?",
-    { true: "It is a useful course file and safe to download.", false: "Do not download it automatically." },
-  ),
-  fileType: choice("What kind of course file is this?", fileTypeCriteria),
-  course: choice("Which configured course does this item belong to?", courseCriteria),
-  createEvent: noul(
-    "Should the application suggest creating a calendar event for this item?",
-    { true: "A calendar reminder would help the user.", false: "No calendar event is needed." },
-  ),
-});
+const createQuestions = (item: AgentItem): Questions => {
+  if (item.source === "downloads") return {};
+
+  const questions: Questions = {
+    actionRequired: noul(
+      "Does this item require a concrete action from the user?",
+      { true: "The user must do something specific.", false: "No action is needed." },
+    ),
+    urgency: choice("What is the appropriate urgency for the action?", urgencyCriteria),
+  };
+
+  if (item.source === "email") {
+    questions.important = noul(
+      "Is this email important enough to include in a concise morning briefing?",
+      { true: "It deserves the user's attention.", false: "It can be omitted from the briefing." },
+    );
+    questions.emailCategory = choice("Which category best describes this email?", categoryCriteria);
+    questions.requiresReply = noul(
+      "Does the user need to reply to this email?",
+      { true: "A reply or response is expected.", false: "No reply is expected." },
+    );
+    questions.hasDeadline = noul(
+      "Does this email contain or represent a real deadline?",
+      { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
+    );
+  }
+
+  if (item.source === "calendar" || item.source === "moodle") {
+    questions.hasDeadline = noul(
+      "Does this calendar or Moodle item contain or represent a real deadline?",
+      { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
+    );
+    questions.createEvent = noul(
+      "Should the application suggest creating a calendar event for this item?",
+      { true: "A calendar reminder would help the user.", false: "No calendar event is needed." },
+    );
+  }
+
+  if (item.source === "moodle") {
+    questions.download = noul(
+      "Should the application download or retain this Moodle course file automatically?",
+      { true: "It is a useful course file and safe to download.", false: "Do not download it automatically." },
+    );
+    questions.fileType = choice("What kind of Moodle course file is this?", fileTypeCriteria);
+    questions.course = choice("Which configured course does this Moodle item belong to?", courseCriteria);
+  }
+
+  return questions;
+};
+
+type JevAnswer = NoulResponse | ChoiceResponse | ScoreResponse;
+type JevAnswerMap = Readonly<Record<string, JevAnswer>>;
+
+const readAnswer = (answers: JevAnswerMap, key: string): JevAnswer => {
+  const answer = answers[key];
+  if (answer === undefined) throw new Error(`Jev did not return an answer for ${key}`);
+  return answer;
+};
+
+const readNoul = (answers: JevAnswerMap, key: string): number => {
+  const answer = readAnswer(answers, key);
+  if (answer.type !== "noul") throw new Error(`Jev answer ${key} was not a Noul answer`);
+  return answer.noul;
+};
+
+const readChoice = (answers: JevAnswerMap, key: string): { choice: string; confidence: number } => {
+  const answer = readAnswer(answers, key);
+  if (answer.type !== "choice") throw new Error(`Jev answer ${key} was not a Choice answer`);
+  return { choice: answer.choice, confidence: answer.confidence };
+};
+
+const asUrgency = (value: string): Urgency => {
+  if (value === "today" || value === "soon" || value === "later" || value === "none") return value;
+  throw new Error(`Jev returned unsupported urgency: ${value}`);
+};
+
+const asEmailCategory = (value: string): ImportantEmailDecision["category"] => {
+  if (
+    value === "academic" ||
+    value === "administrative" ||
+    value === "project" ||
+    value === "personal" ||
+    value === "notification" ||
+    value === "marketing"
+  ) return value;
+  throw new Error(`Jev returned unsupported email category: ${value}`);
+};
+
+const asFileType = (value: string): FileDownloadDecision["fileType"] => {
+  if (value === "lecture" || value === "assignment" || value === "notes" || value === "administrative" || value === "other") return value;
+  throw new Error(`Jev returned unsupported file type: ${value}`);
+};
 
 const record = (
   item: AgentItem,
@@ -137,57 +206,77 @@ export class JevDecisionEngine implements DecisionEngine {
   public constructor(private readonly client: JevEvaluator = new JevClient()) {}
 
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
-    const questions = createQuestions();
+    const questions = createQuestions(item);
+    if (Object.keys(questions).length === 0) return [];
+
     const evaluation = await this.client.evaluate(toState(item), questions);
     const answers = evaluation.answers;
-    const actionConfidence = confidenceOfNoul(answers.actionRequired.noul);
-    const emailConfidence = confidenceOfNoul(answers.important.noul);
-    const deadlineConfidence = confidenceOfNoul(answers.hasDeadline.noul);
-    const downloadConfidence = confidenceOfNoul(answers.download.noul);
-    const calendarConfidence = confidenceOfNoul(answers.createEvent.noul);
-    const deadline = item.deadline?.toISOString();
-    const eventStart = item.deadline === undefined
-      ? undefined
-      : new Date(item.deadline.getTime() - 60 * 60 * 1000).toISOString();
-    const course = answers.course.choice === "other" ? undefined : answers.course.choice;
+    const answerMap = answers as JevAnswerMap;
+    const records: DecisionRecord[] = [];
 
+    const actionRequiredValue = readNoul(answerMap, "actionRequired");
+    const urgency = readChoice(answerMap, "urgency");
     const requiresAction: RequiresActionDecision = {
-      actionRequired: answers.actionRequired.noul >= 0.5,
-      urgency: answers.urgency.choice as Urgency,
-      confidence: Math.min(actionConfidence, answers.urgency.confidence),
+      actionRequired: actionRequiredValue >= 0.5,
+      urgency: asUrgency(urgency.choice),
+      confidence: Math.min(confidenceOfNoul(actionRequiredValue), urgency.confidence),
     };
-    const importantEmail: ImportantEmailDecision = {
-      important: answers.important.noul >= 0.5,
-      category: answers.emailCategory.choice,
-      requiresReply: answers.requiresReply.noul >= 0.5,
-      confidence: Math.min(emailConfidence, answers.emailCategory.confidence),
-    };
-    const deadlineDecision: DeadlineDecision = {
-      hasDeadline: answers.hasDeadline.noul >= 0.5,
-      ...(answers.hasDeadline.noul >= 0.5 && deadline !== undefined ? { deadline } : {}),
-      confidence: deadlineConfidence,
-    };
-    const downloadDecision: FileDownloadDecision = {
-      download: answers.download.noul >= 0.5,
-      fileType: answers.fileType.choice,
-      ...(course === undefined ? {} : { course }),
-      confidence: Math.min(downloadConfidence, answers.fileType.confidence, answers.course.confidence),
-    };
-    const calendarDecision: CalendarActionDecision = {
-      createEvent: answers.createEvent.noul >= 0.5,
-      ...(answers.createEvent.noul >= 0.5 ? { title: item.title } : {}),
-      ...(answers.createEvent.noul >= 0.5 && eventStart !== undefined && deadline !== undefined
-        ? { startTime: eventStart, endTime: deadline }
-        : {}),
-      confidence: calendarConfidence,
-    };
+    records.push(record(item, "requiresAction", requiresAction, evaluation.model));
 
-    return [
-      record(item, "requiresAction", requiresAction, evaluation.model),
-      record(item, "importantEmail", importantEmail, evaluation.model),
-      record(item, "detectDeadline", deadlineDecision, evaluation.model),
-      record(item, "shouldDownloadFile", downloadDecision, evaluation.model),
-      record(item, "shouldCreateCalendarEvent", calendarDecision, evaluation.model),
-    ];
+    if (item.source === "email") {
+      const importantValue = readNoul(answerMap, "important");
+      const category = readChoice(answerMap, "emailCategory");
+      const replyValue = readNoul(answerMap, "requiresReply");
+      const importantEmail: ImportantEmailDecision = {
+        important: importantValue >= 0.5,
+        category: asEmailCategory(category.choice),
+        requiresReply: replyValue >= 0.5,
+        confidence: Math.min(confidenceOfNoul(importantValue), category.confidence, confidenceOfNoul(replyValue)),
+      };
+      records.push(record(item, "importantEmail", importantEmail, evaluation.model));
+    }
+
+    if (item.source === "email" || item.source === "calendar" || item.source === "moodle") {
+      const deadlineValue = readNoul(answerMap, "hasDeadline");
+      const deadline = item.deadline?.toISOString();
+      const deadlineDecision: DeadlineDecision = {
+        hasDeadline: deadlineValue >= 0.5,
+        ...(deadlineValue >= 0.5 && deadline !== undefined ? { deadline } : {}),
+        confidence: confidenceOfNoul(deadlineValue),
+      };
+      records.push(record(item, "detectDeadline", deadlineDecision, evaluation.model));
+    }
+
+    if (item.source === "moodle") {
+      const downloadValue = readNoul(answerMap, "download");
+      const fileType = readChoice(answerMap, "fileType");
+      const course = readChoice(answerMap, "course");
+      const downloadDecision: FileDownloadDecision = {
+        download: downloadValue >= 0.5,
+        fileType: asFileType(fileType.choice),
+        ...(course.choice === "other" ? {} : { course: course.choice }),
+        confidence: Math.min(confidenceOfNoul(downloadValue), fileType.confidence, course.confidence),
+      };
+      records.push(record(item, "shouldDownloadFile", downloadDecision, evaluation.model));
+    }
+
+    if (item.source === "calendar" || item.source === "moodle") {
+      const createEventValue = readNoul(answerMap, "createEvent");
+      const deadline = item.deadline?.toISOString();
+      const eventStart = item.deadline === undefined
+        ? undefined
+        : new Date(item.deadline.getTime() - 60 * 60 * 1000).toISOString();
+      const calendarDecision: CalendarActionDecision = {
+        createEvent: createEventValue >= 0.5,
+        ...(createEventValue >= 0.5 ? { title: item.title } : {}),
+        ...(createEventValue >= 0.5 && eventStart !== undefined && deadline !== undefined
+          ? { startTime: eventStart, endTime: deadline }
+          : {}),
+        confidence: confidenceOfNoul(createEventValue),
+      };
+      records.push(record(item, "shouldCreateCalendarEvent", calendarDecision, evaluation.model));
+    }
+
+    return records;
   }
 }

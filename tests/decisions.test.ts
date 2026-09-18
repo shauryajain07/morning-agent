@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { MockDecisionEngine } from "../src/decisions/mock.js";
 import { getMockCalendarItems } from "../src/collectors/calendar.js";
+import { getMockDownloadItems } from "../src/collectors/downloads.js";
 
 describe("decision outputs", () => {
   it("detects a normalized deadline without inventing a date", async () => {
@@ -15,5 +16,14 @@ describe("decision outputs", () => {
       hasDeadline: true,
       deadline: item.deadline?.toISOString(),
     });
+  });
+
+  it("does not classify an already-downloaded file as an email or calendar item", async () => {
+    const item = getMockDownloadItems()[0];
+    if (item === undefined) throw new Error("fixture missing");
+
+    const decisions = await new MockDecisionEngine().evaluateItem(item);
+
+    expect(decisions).toEqual([]);
   });
 });

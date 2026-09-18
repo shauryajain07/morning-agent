@@ -33,6 +33,7 @@ export type MoodleBrowserOptions = {
   cdpUrl?: string;
   headless?: boolean;
   timeoutMs?: number;
+  loginTimeoutMs?: number;
   maxCoursePages?: number;
 };
 
@@ -47,6 +48,7 @@ export class MoodleAuthenticationRequiredError extends Error {
 }
 
 const defaultTimeoutMs = 15_000;
+const defaultLoginTimeoutMs = 5 * 60 * 1_000;
 const defaultMaxCoursePages = 12;
 const defaultProfileDirectory = join(process.cwd(), ".browser-profile");
 const sensitiveQueryParameter = /^(?:token|wstoken|sesskey|session|password|pass|key)$/iu;
@@ -123,6 +125,7 @@ export class MoodleBrowserSession {
   private ownsContext = false;
   private readonly origin: string;
   private readonly timeoutMs: number;
+  private readonly loginTimeoutMs: number;
 
   public constructor(private readonly options: MoodleBrowserOptions) {
     const baseUrl = new URL(options.baseUrl);
@@ -131,6 +134,7 @@ export class MoodleBrowserSession {
     }
     this.origin = baseUrl.origin;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+    this.loginTimeoutMs = options.loginTimeoutMs ?? defaultLoginTimeoutMs;
   }
 
   public async open(): Promise<Page> {
@@ -170,18 +174,33 @@ export class MoodleBrowserSession {
       timeout: this.timeoutMs,
     });
     await page.waitForLoadState("networkidle", { timeout: Math.min(this.timeoutMs, 2_000) }).catch(() => {});
-    await this.assertAuthenticated(page);
+    await this.waitForAuthentication(page);
     return snapshotPage(page);
   }
 
-  private async assertAuthenticated(page: Page): Promise<void> {
+  private async isAuthenticationPage(page: Page): Promise<boolean> {
     const currentUrl = page.url();
+    const sameMoodleOrigin = sameOrigin(currentUrl, this.origin);
     const loginUrl = /\/(?:login|auth)(?:\/|\.|$)/iu.test(currentUrl);
-    const passwordInputs = await page.locator('input[type="password"]').count().catch(() => 0);
-    const loginForms = await page.locator('form[action*="login"], form#login').count().catch(() => 0);
-    if (loginUrl || passwordInputs > 0 || loginForms > 0) {
-      throw new MoodleAuthenticationRequiredError(currentUrl);
+    const passwordInputs = await page.locator('input[type="password"]:visible').count().catch(() => 0);
+    const loginForms = await page.locator('form#login, form[action*="login"]:visible').count().catch(() => 0);
+    return !sameMoodleOrigin || loginUrl || passwordInputs > 0 || loginForms > 0;
+  }
+
+  private async waitForAuthentication(page: Page): Promise<void> {
+    if (!(await this.isAuthenticationPage(page))) return;
+
+    if (this.options.headless === true) {
+      throw new MoodleAuthenticationRequiredError(page.url());
     }
+
+    const deadline = Date.now() + this.loginTimeoutMs;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(1_000);
+      if (!(await this.isAuthenticationPage(page))) return;
+    }
+
+    throw new MoodleAuthenticationRequiredError(page.url());
   }
 
   public async close(): Promise<void> {

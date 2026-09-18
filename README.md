@@ -28,7 +28,7 @@ MOODLE_BASE_URL=https://your-moodle.example/my/
 MOODLE_BROWSER_PROFILE=.browser-profile
 ```
 
-The first run opens a persistent Chromium profile. Log in yourself, including any SSO or MFA; the collector never receives credentials and never submits forms. It then reads the dashboard and same-origin course pages for announcements, assignment links, due dates, and course-file links. `MOODLE_CDP_URL` can be used instead when an already-running Chromium session is available. The browser tab is closed after collection and the attached browser itself is left open.
+The first run opens a persistent Chromium profile and waits up to five minutes for you to complete Moodle, SSO, and MFA in that window. The collector never receives credentials and never submits forms. It then reads the dashboard and same-origin course pages for announcements, assignment links, due dates, and course-file links. `MOODLE_LOGIN_TIMEOUT_MS` changes the wait window. `MOODLE_CDP_URL` can be used instead when an already-running Chromium session is available. The browser tab is closed after collection and the attached browser itself is left open.
 
 The browser layer is deterministic: it navigates only to the configured Moodle origin and extracts a compact page snapshot. Jev receives normalized Moodle items afterward for typed decisions; it does not choose arbitrary browser clicks or generate navigation text. Moodle mutations and coursework submission are outside the action allowlist.
 

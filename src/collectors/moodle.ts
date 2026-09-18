@@ -50,6 +50,15 @@ export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
     options.timeoutMs = timeoutMs;
   }
 
+  const loginTimeoutValue = nonEmptyEnvironmentValue("MOODLE_LOGIN_TIMEOUT_MS");
+  if (loginTimeoutValue !== undefined) {
+    const loginTimeoutMs = Number(loginTimeoutValue);
+    if (!Number.isInteger(loginTimeoutMs) || loginTimeoutMs < 10_000) {
+      throw new Error("MOODLE_LOGIN_TIMEOUT_MS must be an integer of at least 10000.");
+    }
+    options.loginTimeoutMs = loginTimeoutMs;
+  }
+
   const maxCoursePagesValue = nonEmptyEnvironmentValue("MOODLE_MAX_COURSE_PAGES");
   if (maxCoursePagesValue !== undefined) {
     const maxCoursePages = Number(maxCoursePagesValue);

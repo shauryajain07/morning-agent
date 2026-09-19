@@ -153,7 +153,7 @@ export const collectEdItems = async (): Promise<AgentItem[]> => {
   const baseUrl = new URL(options.baseUrl);
   const endpoint = new URL("/wp-json/wp/v2/posts", baseUrl);
   endpoint.searchParams.set("per_page", String(Math.min(options.maxPosts, 100)));
-  endpoint.searchParams.set("after", new Date(Date.now() - options.lookbackHours * 60 * 60 * 1_000).toISOString());
+  endpoint.searchParams.set("modified_after", new Date(Date.now() - options.lookbackHours * 60 * 60 * 1_000).toISOString());
   endpoint.searchParams.set("_fields", "id,date,modified,link,title,excerpt,content");
   const payload = await fetchJson(endpoint, options.timeoutMs);
   return parseEdPosts(payload, options);

@@ -72,6 +72,8 @@ const relativeTime = (value) => {
 
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
 
+const greeting = (hour) => hour < 12 ? "Good morning," : hour < 18 ? "Good afternoon," : "Good evening,";
+
 const effectiveRun = () => {
   const run = state.data?.run ?? { active: false };
   if (!state.liveRunActive) return run;
@@ -145,6 +147,7 @@ const setConnectionStatus = (status) => {
   const label = $("#connection-label");
   if (label) label.textContent = status === "live" ? "Connected" : status === "reconnecting" ? "Reconnecting" : "Connecting";
   $(".connection-state")?.classList.toggle("is-reconnecting", status === "reconnecting");
+  if (state.data !== null) renderHeader();
 };
 
 const pushActivity = (title, detail, tone = "neutral", at = new Date().toISOString()) => {
@@ -205,6 +208,7 @@ const renderHeader = () => {
       : state.data?.metrics?.total
         ? `${state.data.metrics.total} stored items · ready for another run`
         : "Waiting for the first run";
+  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "local state" : "offline";
   const button = $("#run-button");
   button.disabled = run.active;
   button.classList.toggle("is-loading", run.active);
@@ -652,6 +656,7 @@ const connectEvents = () => {
 
 const tickClock = () => {
   const now = new Date();
+  $("#greeting-prefix").textContent = greeting(now.getHours());
   $("#current-day").textContent = new Intl.DateTimeFormat("en-HK", { weekday: "long", day: "numeric", month: "long" }).format(now);
   $("#current-time").textContent = new Intl.DateTimeFormat("en-HK", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(now);
 };

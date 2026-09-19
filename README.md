@@ -33,6 +33,8 @@ GMAIL_MAX_MESSAGES=500
 
 `GMAIL_ACCESS_TOKEN` is supported for a short-lived token. Alternatively, set `GMAIL_CREDENTIALS_PATH` and `GMAIL_TOKEN_PATH` to the OAuth client and token JSON files. A Google API key alone cannot read a private mailbox. With no `GMAIL_QUERY`, the collector lists recent Gmail messages, fetches their full read-only MIME payloads, and applies the exact lookback window using Gmail's received timestamp; use `GMAIL_QUERY="is:unread newer_than:1d"` to restrict it to unread mail. It never modifies labels, marks mail read, sends, replies, archives, or deletes.
 
+For a new setup, download Google’s desktop OAuth `credentials.json`, place it at `.gmail-credentials.json`, set `GMAIL_TOKEN_PATH=.gmail-token.json`, and run `npm run gmail:login`. A browser consent screen opens locally, requests only `gmail.readonly`, and saves the refresh token in the ignored token file. Then set `GMAIL_ENABLED=true` and run the normal dry run.
+
 ## Moodle collection
 
 Moodle is collected through a read-only Playwright adapter because it does not provide the needed API. Copy the Moodle settings into `.env`, for example:

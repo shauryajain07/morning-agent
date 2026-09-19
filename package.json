@@ -8,6 +8,7 @@
   },
   "scripts": {
     "morning": "node --env-file=.env --import=tsx src/index.ts",
+    "gmail:login": "node --env-file=.env --import=tsx src/gmailLogin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json"

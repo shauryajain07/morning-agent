@@ -261,6 +261,11 @@ type GmailAuth = {
   refreshToken?: string | undefined;
 };
 
+export type GmailOAuthClientCredentials = {
+  clientId: string;
+  clientSecret: string;
+};
+
 const recordFromUnknown = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
@@ -283,6 +288,21 @@ const readJsonRecord = async (path: string): Promise<Record<string, unknown>> =>
   }
 };
 
+export const readGmailOAuthClientCredentials = async (
+  path: string,
+): Promise<GmailOAuthClientCredentials> => {
+  const credentials = await readJsonRecord(path);
+  const application = recordFromUnknown(credentials.installed ?? credentials.web ?? credentials);
+  const clientId = stringProperty(application, "client_id");
+  const clientSecret = stringProperty(application, "client_secret");
+  if (clientId === undefined || clientSecret === undefined) {
+    throw new GmailConfigurationError(
+      `Gmail credential file ${path} does not contain an OAuth client_id and client_secret.`,
+    );
+  }
+  return { clientId, clientSecret };
+};
+
 const resolveGmailAuth = async (options: GmailProviderOptions): Promise<GmailAuth> => {
   let clientId = nonEmpty(options.clientId);
   let clientSecret = nonEmpty(options.clientSecret);
@@ -290,10 +310,9 @@ const resolveGmailAuth = async (options: GmailProviderOptions): Promise<GmailAut
   let accessToken = nonEmpty(options.accessToken);
 
   if (options.credentialsPath !== undefined) {
-    const credentials = await readJsonRecord(options.credentialsPath);
-    const application = recordFromUnknown(credentials.installed ?? credentials.web ?? credentials);
-    clientId ??= stringProperty(application, "client_id");
-    clientSecret ??= stringProperty(application, "client_secret");
+    const credentials = await readGmailOAuthClientCredentials(options.credentialsPath);
+    clientId ??= credentials.clientId;
+    clientSecret ??= credentials.clientSecret;
   }
 
   if (options.tokenPath !== undefined) {

@@ -140,7 +140,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, dialog:focus-vi
 .privacy-orb { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(120, 199, 147, .12); }
 .privacy-orb span { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); }
 .sidebar-footer { display: flex; align-items: center; gap: 7px; padding: 0 10px; color: var(--dim); font-size: 10px; }
-.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--lime); }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+.sidebar-footer .live-dot.is-live { background: var(--lime); }
+.sidebar-footer .live-dot.is-reconnecting { background: var(--gold); }
 
 .workspace { min-width: 0; padding: 0 40px 64px; }
 .topbar {

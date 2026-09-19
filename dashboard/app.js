@@ -272,6 +272,11 @@ const setConnectionStatus = (status) => {
   const connectionState = $(".connection-state");
   connectionState?.classList.toggle("is-live", status === "live");
   connectionState?.classList.toggle("is-reconnecting", status === "reconnecting");
+  const serviceDot = $(".sidebar-footer .live-dot");
+  serviceDot?.classList.toggle("is-live", status === "live");
+  serviceDot?.classList.toggle("is-reconnecting", status === "reconnecting");
+  const serviceLabel = $("#service-label");
+  if (serviceLabel) serviceLabel.textContent = status === "live" ? "Local service" : status === "reconnecting" ? "Reconnecting" : "Connecting";
   if (state.data !== null) renderHeader();
 };
 

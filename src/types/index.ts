@@ -4,6 +4,8 @@ export const agentSources = [
   "github",
   "downloads",
   "moodle",
+  "ed",
+  "news",
 ] as const;
 
 export type AgentSource = (typeof agentSources)[number];
@@ -80,19 +82,39 @@ export type CalendarActionDecision = {
   confidence: number;
 };
 
+export const newsCategories = [
+  "technology",
+  "science",
+  "business",
+  "world",
+  "education",
+  "culture",
+  "other",
+] as const;
+
+export type NewsCategory = (typeof newsCategories)[number];
+
+export type NewsWorthReadingDecision = {
+  worthReading: boolean;
+  category: NewsCategory;
+  confidence: number;
+};
+
 export type DecisionName =
   | "requiresAction"
   | "importantEmail"
   | "detectDeadline"
   | "shouldDownloadFile"
-  | "shouldCreateCalendarEvent";
+  | "shouldCreateCalendarEvent"
+  | "worthReading";
 
 export type DecisionOutput =
   | RequiresActionDecision
   | ImportantEmailDecision
   | DeadlineDecision
   | FileDownloadDecision
-  | CalendarActionDecision;
+  | CalendarActionDecision
+  | NewsWorthReadingDecision;
 
 export type DecisionRecord = {
   itemId: string;

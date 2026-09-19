@@ -71,3 +71,11 @@ The first run opens a separate persistent Chromium profile and waits up to five 
 Outlook records use the existing `email` source and go through the same TypeSafe Jev email questions as Gmail/mock email. Stable browser-derived IDs and the local SQLite seen-item store prevent the same message from being briefed repeatedly on daily runs.
 
 External text is always treated as data. Only the allowlisted typed actions can execute, and calendar/task mutations remain approval-gated even at high confidence.
+
+## GitHub, ed.com, and daily news
+
+GitHub is collected read-only through the official REST API. Configure one of these modes in `.env`: `GITHUB_TOKEN` for participating notifications, `GITHUB_USERNAME` for public activity, or `GITHUB_REPOS=owner/repo,other/repo` for recent repository issues and pull requests. `GITHUB_LOOKBACK_HOURS` and `GITHUB_MAX_ITEMS` bound the collection. GitHub is disabled until one of these values is configured or `GITHUB_ENABLED=true` is set.
+
+`ed.com` is treated as a public WordPress source and read through `/wp-json/wp/v2/posts`; it does not require a login. `ED_ENABLED=true` is the default, with `ED_BASE_URL`, `ED_LOOKBACK_HOURS`, and `ED_MAX_POSTS` available for configuration.
+
+Daily news uses read-only RSS/Atom feeds. Set `NEWS_FEEDS` to a comma-separated list of feeds, or keep the defaults in `.env.example`. Every `news` and `ed` item gets one Jev `worthReading` decision with a category. Articles judged worth reading appear under `[READ NEXT]` in the briefing and in the dashboard’s News/ed.com filters. Stable article IDs and the existing local seen-item store prevent the same article from being briefed repeatedly on later pulses.

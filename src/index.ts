@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { collectCalendarItems } from "./collectors/calendar.js";
 import { collectDownloads } from "./collectors/downloads.js";
 import { collectEmailItems } from "./collectors/email.js";
+import { collectEdItems } from "./collectors/ed.js";
 import { collectGitHubItems } from "./collectors/github.js";
+import { collectNewsItems } from "./collectors/news.js";
 import { collectOutlookEmailItems } from "./collectors/outlook.js";
 import { collectMockItems } from "./collectors/mock.js";
 import {
@@ -75,17 +77,32 @@ const isMissingPathError = (error: unknown): boolean =>
   "code" in error &&
   error.code === "ENOENT";
 
+const collectOptionalSource = async (
+  label: string,
+  collector: () => Promise<AgentItem[]>,
+): Promise<AgentItem[]> => {
+  try {
+    return await collector();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    console.warn(`[${label}] skipped: ${message}`);
+    return [];
+  }
+};
+
 const collectRealItems = async (): Promise<AgentItem[]> => {
   const moodle = new HKUMoodleProvider(moodleOptionsFromEnvironment());
   const downloads = await collectDownloads().catch((error: unknown) => {
     if (isMissingPathError(error)) return [];
     throw error;
   });
-  const [calendar, email, outlookEmail, github, announcements, assignments, courseFiles] = await Promise.all([
+  const [calendar, email, outlookEmail, github, ed, news, announcements, assignments, courseFiles] = await Promise.all([
     collectCalendarItems(),
     collectEmailItems(),
     collectOutlookEmailItems(),
-    collectGitHubItems(),
+    collectOptionalSource("GitHub", collectGitHubItems),
+    collectOptionalSource("ed.com", collectEdItems),
+    collectOptionalSource("News", collectNewsItems),
     moodle.getAnnouncements(),
     moodle.getAssignments(),
     moodle.getCourseFiles(),
@@ -96,6 +113,8 @@ const collectRealItems = async (): Promise<AgentItem[]> => {
     ...email,
     ...outlookEmail,
     ...github,
+    ...ed,
+    ...news,
     ...announcements,
     ...assignments,
     ...courseFiles,

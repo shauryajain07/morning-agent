@@ -13,6 +13,8 @@ const sourceMeta = {
   github: { label: "GitHub", icon: "⌘", className: "work" },
   calendar: { label: "Calendar", icon: "◷", className: "calendar" },
   downloads: { label: "Files", icon: "↓", className: "files" },
+  news: { label: "Daily news", icon: "✦", className: "news" },
+  ed: { label: "ed.com", icon: "e", className: "ed" },
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -56,6 +58,7 @@ const decisionSummary = (decision) => {
   if (decision.decision === "detectDeadline") return output.hasDeadline ? "deadline detected" : "no deadline found";
   if (decision.decision === "shouldDownloadFile") return output.download ? `retain · ${output.fileType ?? "file"}` : "do not retain automatically";
   if (decision.decision === "shouldCreateCalendarEvent") return output.createEvent ? "calendar event suggested" : "no event suggested";
+  if (decision.decision === "worthReading") return output.worthReading ? `worth reading · ${output.category ?? "article"}` : `skip for now · ${output.category ?? "article"}`;
   return "decision recorded";
 };
 
@@ -92,6 +95,8 @@ const renderMetrics = () => {
   $("#side-email-count").textContent = metrics.emails ?? 0;
   $("#side-moodle-count").textContent = metrics.moodle ?? 0;
   $("#side-work-count").textContent = metrics.work ?? 0;
+  $("#side-news-count").textContent = metrics.news ?? 0;
+  $("#side-ed-count").textContent = metrics.ed ?? 0;
   $("#everything-count").textContent = `${metrics.total ?? 0} SIGNALS`;
   $("#donut-total").textContent = metrics.total ?? 0;
 };
@@ -180,7 +185,7 @@ const renderSourceVisual = () => {
     return `${colors[index % colors.length]} ${start}% ${end}%`;
   });
   $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
-  const labels = ["email", "github", "moodle", "calendar", "downloads"];
+  const labels = ["email", "github", "moodle", "calendar", "downloads", "news", "ed"];
   $("#source-bars").innerHTML = labels.map((name) => {
     const count = counts[name] ?? 0;
     const width = total === 0 ? 0 : Math.max(4, count / total * 100);
@@ -207,7 +212,9 @@ const filteredItems = () => {
     const matchesFilter = state.filter === "all"
       || (state.filter === "work" && ["github", "calendar"].includes(item.source))
       || (state.filter === "moodle" && item.source === "moodle")
-      || (state.filter === "email" && item.source === "email");
+      || (state.filter === "email" && item.source === "email")
+      || (state.filter === "news" && item.source === "news")
+      || (state.filter === "ed" && item.source === "ed");
     const haystack = `${item.title} ${item.content ?? ""} ${item.source}`.toLowerCase();
     return matchesFilter && haystack.includes(state.query.toLowerCase());
   });

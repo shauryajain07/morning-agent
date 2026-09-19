@@ -77,6 +77,8 @@ button { color: inherit; }
 .source-glyph.email { color: var(--lime); }
 .source-glyph.moodle { color: var(--violet); }
 .source-glyph.work { color: var(--cyan); }
+.source-glyph.news { color: var(--gold); }
+.source-glyph.ed { color: var(--coral); }
 .sidebar-spacer { flex: 1; min-height: 45px; }
 .privacy-card { display: flex; gap: 10px; align-items: center; margin: 0 4px 15px; padding: 12px 10px; border: 1px solid rgba(211, 255, 112, .12); border-radius: 10px; background: rgba(211, 255, 112, .045); }
 .privacy-card strong { display: block; font-size: 11px; font-weight: 650; }
@@ -205,6 +207,8 @@ h1 em { color: var(--cyan); font-style: normal; }
 .source-bar-row:nth-child(3) .source-bar-fill { background: var(--violet); }
 .source-bar-row:nth-child(4) .source-bar-fill { background: var(--coral); }
 .source-bar-row:nth-child(5) .source-bar-fill { background: var(--gold); }
+.source-bar-row:nth-child(6) .source-bar-fill { background: var(--cyan); }
+.source-bar-row:nth-child(7) .source-bar-fill { background: var(--coral); }
 .source-bar-row b { color: var(--text); font-size: 11px; font-weight: 600; text-align: right; }
 .focus-panel { padding-bottom: 25px; }
 .focus-score { color: var(--gold); font-family: "SF Mono", ui-monospace, monospace; font-size: 16px; }

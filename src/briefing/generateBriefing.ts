@@ -14,6 +14,7 @@ export type MorningReport = {
   urgent: string[];
   academic: string[];
   github: string[];
+  news: string[];
   emails: string[];
   upcoming: string[];
   autoCompleted: string[];
@@ -57,6 +58,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
   const urgent: string[] = [];
   const academic: string[] = [];
   const github: string[] = [];
+  const news: string[] = [];
   const emails: string[] = [];
   const upcoming: string[] = [];
   const autoCompleted = input.actions
@@ -80,6 +82,13 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     }
 
     if (item.source === "github" && input.newItemIds.has(item.id)) github.push(item.title);
+
+    if ((item.source === "news" || item.source === "ed") && input.newItemIds.has(item.id)) {
+      const readingDecision = decisionFor(input.decisions, item.id, "worthReading");
+      if (readingDecision?.output !== undefined && "worthReading" in readingDecision.output && readingDecision.output.worthReading) {
+        news.push(item.title);
+      }
+    }
 
     if (
       item.source === "moodle" &&
@@ -113,6 +122,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     ...(urgent.length > 0 ? ["", "[URGENT]", ...urgent.map((entry) => entry)] : []),
     ...(academic.length > 0 ? ["", "[ACADEMIC]", ...academic.map((entry) => entry)] : []),
     ...(github.length > 0 ? ["", "[GITHUB]", ...github.map((entry) => entry)] : []),
+    ...(news.length > 0 ? ["", "[READ NEXT]", ...news.map((entry) => `- ${entry}`)] : []),
     ...(emails.length > 0
       ? ["", "[EMAIL]", `${emails.length} important email${emails.length === 1 ? "" : "s"}`, ...emails.map((entry) => `- ${entry}`)]
       : []),
@@ -128,6 +138,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     `${upcoming.length} upcoming deadline${upcoming.length === 1 ? "" : "s"}`,
     `${academic.length} new course file${academic.length === 1 ? "" : "s"}`,
     `${emails.length} important email${emails.length === 1 ? "" : "s"}`,
+    `${news.length} article${news.length === 1 ? "" : "s"} worth reading`,
   ];
 
   return {
@@ -135,6 +146,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     urgent,
     academic,
     github,
+    news,
     emails,
     upcoming,
     autoCompleted,

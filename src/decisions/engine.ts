@@ -6,9 +6,11 @@ import type {
   DeadlineDecision,
   FileDownloadDecision,
   ImportantEmailDecision,
+  NewsWorthReadingDecision,
   RequiresActionDecision,
   Urgency,
 } from "../types/index.js";
+import { newsCategories } from "../types/index.js";
 import type {
   ChoiceResponse,
   EntryType,
@@ -52,6 +54,16 @@ const courseCriteria: Record<string, string | null> = {
   ...Object.fromEntries(courseCodes.map((code) => [code, `Material for course ${code}.`])),
   other: "No configured course clearly fits.",
 };
+
+const newsCategoryCriteria = {
+  technology: "Technology, software, computing, or the internet.",
+  science: "Science, health research, or the natural world.",
+  business: "Business, markets, finance, or the economy.",
+  world: "International affairs, politics, or major world events.",
+  education: "Schools, universities, learning, or education policy.",
+  culture: "Arts, media, entertainment, sport, or culture.",
+  other: "It does not clearly fit another category.",
+} as const;
 
 const moodleKind = (item: AgentItem): string | undefined => {
   const value = item.metadata.kind;
@@ -132,6 +144,19 @@ const confidenceOfNoul = (value: number): number => Math.max(value, 1 - value);
 
 const createQuestions = (item: AgentItem): Questions => {
   if (item.source === "downloads") return {};
+
+  if (item.source === "ed" || item.source === "news") {
+    return {
+      worthReading: noul(
+        "Is this article worth the user's limited reading time this morning?",
+        {
+          true: "It has clear relevance, novelty, importance, or useful insight for the user.",
+          false: "It is routine, low-relevance, repetitive, or not worth prioritizing this morning.",
+        },
+      ),
+      newsCategory: choice("Which category best describes this article?", newsCategoryCriteria),
+    };
+  }
 
   const questions: Questions = {
     actionRequired: noul(
@@ -225,6 +250,13 @@ const asFileType = (value: string): FileDownloadDecision["fileType"] => {
   throw new Error(`Jev returned unsupported file type: ${value}`);
 };
 
+const asNewsCategory = (value: string): NewsWorthReadingDecision["category"] => {
+  if (newsCategories.some((category) => category === value)) {
+    return value as NewsWorthReadingDecision["category"];
+  }
+  throw new Error(`Jev returned unsupported news category: ${value}`);
+};
+
 const record = (
   item: AgentItem,
   decision: DecisionRecord["decision"],
@@ -243,6 +275,17 @@ export class JevDecisionEngine implements DecisionEngine {
     const answers = evaluation.answers;
     const answerMap = answers as JevAnswerMap;
     const records: DecisionRecord[] = [];
+
+    if (item.source === "ed" || item.source === "news") {
+      const worthReadingValue = readNoul(answerMap, "worthReading");
+      const category = readChoice(answerMap, "newsCategory");
+      const worthReading: NewsWorthReadingDecision = {
+        worthReading: worthReadingValue >= 0.5,
+        category: asNewsCategory(category.choice),
+        confidence: Math.min(confidenceOfNoul(worthReadingValue), category.confidence),
+      };
+      return [record(item, "worthReading", worthReading, evaluation.model)];
+    }
 
     const actionRequiredValue = readNoul(answerMap, "actionRequired");
     const urgency = readChoice(answerMap, "urgency");

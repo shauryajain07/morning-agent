@@ -5,6 +5,7 @@ import type {
   DeadlineDecision,
   FileDownloadDecision,
   ImportantEmailDecision,
+  NewsWorthReadingDecision,
   RequiresActionDecision,
 } from "../types/index.js";
 import type { DecisionEngine } from "./engine.js";
@@ -34,6 +35,15 @@ const mockUrgency = (item: AgentItem): RequiresActionDecision["urgency"] => {
 export class MockDecisionEngine implements DecisionEngine {
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
     if (item.source === "downloads") return [];
+
+    if (item.source === "ed" || item.source === "news") {
+      const worthReading: NewsWorthReadingDecision = {
+        worthReading: true,
+        category: item.source === "ed" ? "technology" : "other",
+        confidence,
+      };
+      return [record(item, "worthReading", worthReading)];
+    }
 
     const records: DecisionRecord[] = [];
     const actionRequired = item.source === "email" || item.source === "github" || item.metadata.kind === "assignment";

@@ -7,6 +7,7 @@ import {
   agentSources,
   emailCategories,
   fileTypes,
+  newsCategories,
 } from "../types/index.js";
 import type {
   ActionKind,
@@ -23,6 +24,7 @@ import type {
   FileDownloadDecision,
   FileType,
   ImportantEmailDecision,
+  NewsWorthReadingDecision,
   RequiresActionDecision,
   ReviewRecord,
   ReviewStatus,
@@ -114,6 +116,7 @@ const decisionNames = [
   "detectDeadline",
   "shouldDownloadFile",
   "shouldCreateCalendarEvent",
+  "worthReading",
 ] as const;
 const actionKinds = [
   "downloadFile",
@@ -338,6 +341,24 @@ function parseDecisionOutput(
         }
         result.endTime = value.endTime;
       }
+      return result;
+    }
+    case "worthReading": {
+      const worthReading = value.worthReading;
+      const category = value.category;
+      const confidence = value.confidence;
+      if (
+        typeof worthReading !== "boolean" ||
+        !isOneOf(newsCategories, category) ||
+        !isConfidence(confidence)
+      ) {
+        throw new Error("Stored worthReading output has an invalid shape");
+      }
+      const result: NewsWorthReadingDecision = {
+        worthReading,
+        category,
+        confidence,
+      };
       return result;
     }
   }

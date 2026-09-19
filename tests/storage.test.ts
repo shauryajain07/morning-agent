@@ -43,4 +43,23 @@ describe("SQLite state", () => {
     expect(store.getReview("email:review-1", "importantEmail")?.status).toBe("approved");
     store.close();
   });
+
+  it("round-trips article reading decisions", () => {
+    const store = createStore(":memory:");
+    const decidedAt = new Date("2026-09-19T08:00:00.000Z");
+    store.recordDecision({
+      itemId: "news:story-1",
+      decision: "worthReading",
+      output: { worthReading: true, category: "technology", confidence: 0.91 },
+      model: "jev-latest",
+      decidedAt,
+    });
+
+    expect(store.getDecisions()[0]?.output).toEqual({
+      worthReading: true,
+      category: "technology",
+      confidence: 0.91,
+    });
+    store.close();
+  });
 });

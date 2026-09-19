@@ -28,6 +28,7 @@ const decisionNames = new Set<DecisionName>([
   "detectDeadline",
   "shouldDownloadFile",
   "shouldCreateCalendarEvent",
+  "worthReading",
 ]);
 
 const contentTypes: Record<string, string> = {
@@ -86,6 +87,9 @@ type DashboardState = {
   metrics: {
     total: number;
     emails: number;
+    github: number;
+    ed: number;
+    news: number;
     work: number;
     moodle: number;
     downloads: number;
@@ -274,6 +278,9 @@ const buildDashboardState = (): DashboardState => {
       metrics: {
         total: items.length,
         emails: sourceCounts.email ?? 0,
+        github: sourceCounts.github ?? 0,
+        ed: sourceCounts.ed ?? 0,
+        news: sourceCounts.news ?? 0,
         work: (sourceCounts.github ?? 0) + (sourceCounts.calendar ?? 0),
         moodle: sourceCounts.moodle ?? 0,
         downloads: sourceCounts.downloads ?? 0,

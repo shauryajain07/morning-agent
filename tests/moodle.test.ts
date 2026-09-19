@@ -320,4 +320,56 @@ describe("Moodle browser adapter", () => {
     expect(result.courseFiles).toHaveLength(1);
     expect(result.courseFiles[0]?.url).toContain("pluginfile.php");
   });
+
+  it("does not turn quiz review questions or unrelated modules into assignments", () => {
+    const snapshot: MoodlePageSnapshot = {
+      url: "https://moodle.example/course/view.php?id=10",
+      title: "MATH1851",
+      bodyText: "",
+      links: [
+        {
+          href: "https://moodle.example/mod/assign/view.php?id=42",
+          text: "Week 3 assignment",
+          context: "Week 3 assignment — Due: 23 September 2026",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/mod/quiz/review.php?attempt=55&cmid=88&page=1",
+          text: "Question 1",
+          context: "Question 1 This page",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/mod/forum/view.php?id=90",
+          text: "Course forum",
+          context: "Assignment discussion forum",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/mod/choicegroup/index.php?id=91",
+          text: "Group choices",
+          context: "Assignment group choices",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/mod/folder/view.php?id=92",
+          text: "Week 3 files",
+          context: "Week 3 files",
+          title: "",
+          ariaLabel: "",
+        },
+      ],
+    };
+
+    const result = extractMoodleItems([snapshot]);
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0]?.url).toBe("https://moodle.example/mod/assign/view.php?id=42");
+    expect(discoverMoodleDetailLinks(snapshot, "https://moodle.example/")).toEqual([
+      "https://moodle.example/mod/folder/view.php?id=92",
+    ]);
+  });
 });

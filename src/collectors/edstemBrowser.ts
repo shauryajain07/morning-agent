@@ -298,12 +298,27 @@ export class EdStemBrowserSession {
     const passwordInputs = await page.locator('input[type="password"]:visible').count().catch(() => 0);
     const bodyText = await page.locator("body").innerText().catch(() => "");
     const loginPrompt = /log\s+in\s+to\s+continue|sign\s+in\s+to\s+continue/iu.test(bodyText.slice(0, 8_000));
-    return !isAllowedEdStemUrl(currentUrl) || loginUrl || passwordInputs > 0 || loginPrompt;
+    const publicLoginControls = await page
+      .locator('[data-testid="login"], button.land-head-btn-login, a[href$="/login"]')
+      .count()
+      .catch(() => 0);
+    const publicLanding = publicLoginControls > 0 && /\b(?:sign\s*up|login)\b/iu.test(bodyText.slice(0, 8_000));
+    return !isAllowedEdStemUrl(currentUrl) || loginUrl || passwordInputs > 0 || loginPrompt || publicLanding;
+  }
+
+  private async openLoginScreen(page: Page): Promise<void> {
+    const loginControl = page
+      .locator('[data-testid="login"], button.land-head-btn-login, a[href$="/login"]')
+      .first();
+    if (await loginControl.count().catch(() => 0) === 0) return;
+    await loginControl.click({ timeout: this.timeoutMs }).catch(() => {});
+    await page.waitForTimeout(250);
   }
 
   private async waitForAuthentication(page: Page): Promise<void> {
     const deadline = Date.now() + this.loginTimeoutMs;
     const shellDeadline = Date.now() + Math.min(this.loginTimeoutMs, 10_000);
+    let loginScreenOpened = false;
     while (Date.now() < deadline) {
       if (!(await this.isAuthenticationPage(page))) {
         const snapshot = await snapshotPage(page).catch(() => undefined);
@@ -312,6 +327,9 @@ export class EdStemBrowserSession {
         }
       } else if (this.options.headless === true) {
         throw new EdStemAuthenticationRequiredError(page.url());
+      } else if (!loginScreenOpened) {
+        loginScreenOpened = true;
+        await this.openLoginScreen(page);
       }
       await page.waitForTimeout(750);
     }

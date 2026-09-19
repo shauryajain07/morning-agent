@@ -56,6 +56,11 @@ const defaultProfileDirectory = join(process.cwd(), ".browser-profile");
 const sensitiveQueryParameter = /^(?:token|wstoken|sesskey|session|password|pass|key)$/iu;
 const courseCodePattern = new RegExp(`\\b(?:${courseCodes.join("|")})(?=\\b|[_-])`, "iu");
 const math1851AbCoursePattern = /\bMATH1851[_\s-]*1AB\b/iu;
+const moodleResourcePathPattern = /\/mod\/(?:resource|folder)\/view(?:\.php)?\/?$/u;
+const moodleAssignmentPathPattern = /\/mod\/(?:assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
+// Assignment/quiz pages are already represented by their course-listing links.
+// Only resource/folder pages need a bounded detail crawl to find nested files.
+const moodleDetailPathPattern = moodleResourcePathPattern;
 
 const cleanText = (value: string): string => value.replace(/\s+/gu, " ").trim();
 
@@ -83,6 +88,15 @@ const toCanonicalMoodleUrl = (value: string): string | undefined => {
     url.hash = "";
     for (const key of Array.from(url.searchParams.keys())) {
       if (sensitiveQueryParameter.test(key)) url.searchParams.delete(key);
+    }
+    if (
+      /\/(?:course\/view(?:\.php)?|mod\/(?:resource|folder|assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?)\/?$/iu.test(url.pathname)
+    ) {
+      const id = url.searchParams.get("id");
+      if (id !== null) {
+        url.search = "";
+        url.searchParams.set("id", id);
+      }
     }
     return url.toString();
   } catch {
@@ -304,8 +318,7 @@ export const discoverMoodleDetailLinks = (
       continue;
     }
 
-    const isActivityPage = /\/mod\/(?:resource|folder|assign|quiz|workshop)\//u.test(path);
-    if (!isActivityPage) continue;
+    if (!moodleDetailPathPattern.test(path)) continue;
 
     const canonical = toCanonicalMoodleUrl(link.href);
     if (canonical !== undefined) links.add(canonical);
@@ -515,20 +528,19 @@ const isAnnouncementCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkS
 const isAssignmentCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
-  const courseFilePath =
-    path.includes("/mod/resource/") || path.includes("/mod/folder/") || path.includes("/pluginfile.php");
-  if (courseFilePath) return false;
-  const assignmentActivity =
-    path.includes("/mod/assign/") || path.includes("/mod/quiz/") || path.includes("/mod/workshop/");
-  const assignmentCue = /assignment|assessment|quiz|exam|lab|submission|due|deadline/iu.test(text);
-  return assignmentActivity ? assignmentCue : path.includes("/mod/") && assignmentCue;
+  if (!moodleAssignmentPathPattern.test(path)) return false;
+  const assignmentCue = /assignment|assessment|quiz|exam|lab|workshop|submission|due|deadline/iu.test(text);
+  // An assign landing page is unambiguous even when its visible title is a
+  // week/topic label. Other activity types need an assessment cue so quiz
+  // review/question pages cannot become fake assignments.
+  return path.includes("/mod/assign/") || assignmentCue;
 };
 
 const isCourseFileCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
   const hasVisibleLabel = link.text.length > 0 || link.ariaLabel.length > 0 || link.title.length > 0;
-  if (path.includes("/mod/resource/") || path.includes("/mod/folder/")) return hasVisibleLabel;
+  if (moodleResourcePathPattern.test(path)) return hasVisibleLabel;
   if (path.includes("/pluginfile.php")) {
     return (
       /\.(?:pdf|docx?|pptx?|xlsx?|zip|txt|csv|mp4|mov|png|jpe?g)(?:$|[?#])/iu.test(link.href) ||

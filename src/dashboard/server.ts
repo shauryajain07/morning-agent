@@ -23,6 +23,7 @@ const dashboardRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../da
 const defaultHost = "127.0.0.1";
 const defaultPort = 4_782;
 const lowConfidenceThreshold = 0.75;
+const validMoodleAssignmentPath = /\/mod\/(?:assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
 
 const decisionNames = new Set<DecisionName>([
   "requiresAction",
@@ -294,12 +295,24 @@ const serializeDecision = (decision: DecisionRecord): SerializedDecision => ({
   decidedAt: decision.decidedAt.toISOString(),
 });
 
+const isStaleMoodleAssignment = (item: StoredAgentItem): boolean => {
+  if (item.source !== "moodle" || item.metadata.kind !== "assignment") return false;
+  if (item.url === undefined) return true;
+  try {
+    return !validMoodleAssignmentPath.test(new URL(item.url).pathname.toLowerCase());
+  } catch {
+    return true;
+  }
+};
+
 const buildDashboardState = (): DashboardState => {
   const store = createStore({ dbPath: defaultSettings.databasePath });
   try {
     syncPersistedRunState(store);
     const items = store.getItems(1_000).filter(
-      (item) => !(item.source === "downloads" && shouldIgnoreDownload(item.title)),
+      (item) =>
+        !(item.source === "downloads" && shouldIgnoreDownload(item.title)) &&
+        !isStaleMoodleAssignment(item),
     );
     const latestDecisions = new Map<string, DecisionRecord>();
     for (const decision of store.getDecisions()) {
@@ -344,7 +357,11 @@ const buildDashboardState = (): DashboardState => {
     const deadlineCutoff = deadlineNow + 7 * 24 * 60 * 60 * 1_000;
     const deadlines = store.getDeadlines().filter((deadline) => {
       const timestamp = deadline.deadline.getTime();
-      return timestamp >= deadlineNow && timestamp <= deadlineCutoff;
+      return (
+        timestamp >= deadlineNow &&
+        timestamp <= deadlineCutoff &&
+        items.some((item) => item.id === deadline.id)
+      );
     });
     const actions = store.getActions();
 

@@ -466,7 +466,8 @@ const selectView = (view) => {
   $$(".nav-item").forEach((button) => {
     const active = button.dataset.view === state.view;
     button.classList.toggle("is-active", active);
-    button.setAttribute("aria-current", active ? "page" : "false");
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
   $("#crumb-view").textContent = control ? "CONTROL ROOM" : "EVERYTHING";
 };

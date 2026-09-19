@@ -105,13 +105,13 @@
               <h1 id="everything-title">Your day, <em>unfolded.</em></h1>
               <p class="lede">One local view across inbox, coursework, work, calendar, and files.</p>
             </div>
-            <div class="view-toggle" role="tablist" aria-label="Everything filters">
-              <button class="filter-button is-active" data-filter="all" type="button">All</button>
-              <button class="filter-button" data-filter="email" type="button">Inbox</button>
-              <button class="filter-button" data-filter="work" type="button">Work</button>
-              <button class="filter-button" data-filter="moodle" type="button">Moodle</button>
-              <button class="filter-button" data-filter="news" type="button">News</button>
-              <button class="filter-button" data-filter="edstem" type="button">Ed Lessons</button>
+            <div class="view-toggle" role="group" aria-label="Everything filters">
+              <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
+              <button class="filter-button" data-filter="email" type="button" aria-pressed="false">Inbox</button>
+              <button class="filter-button" data-filter="work" type="button" aria-pressed="false">Work</button>
+              <button class="filter-button" data-filter="moodle" type="button" aria-pressed="false">Moodle</button>
+              <button class="filter-button" data-filter="news" type="button" aria-pressed="false">News</button>
+              <button class="filter-button" data-filter="edstem" type="button" aria-pressed="false">Ed Lessons</button>
             </div>
           </div>
 
@@ -121,7 +121,7 @@
           </div>
 
           <article class="panel stream-panel">
-            <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2><span class="stream-result-count" id="stream-result-count">0 signals</span></div><div class="stream-controls"><label class="course-filter"><span>COURSE</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" aria-label="Search all signals" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
+              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2><span class="stream-result-count" id="stream-result-count" aria-live="polite">0 signals</span></div><div class="stream-controls"><label class="course-filter"><span>COURSE</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" aria-label="Search all signals" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
             <div class="stream-table-head"><span>Signal</span><span>Source</span><span>When</span><span>State</span></div>
             <div class="stream-table" id="stream-table"></div>
             <div class="stream-footer" id="stream-footer"><span id="stream-pagination">Showing 0 signals</span><button class="load-more" id="stream-more" type="button" hidden>Load more signals</button></div>

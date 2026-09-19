@@ -415,7 +415,7 @@ const renderActivity = () => {
     const body = `<span class="activity-pip ${escapeHtml(event.tone)}"></span><span><span class="activity-title">${escapeHtml(event.title)}</span><span class="activity-detail">${escapeHtml(event.detail)}</span></span><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span>`;
     return event.itemId === undefined
       ? `<div class="activity-row">${body}</div>`
-      : `<button class="activity-row activity-link" data-open-item="${escapeHtml(event.itemId)}" type="button" aria-label="Open ${escapeHtml(event.title)}">${body}</button>`;
+      : `<button class="activity-row activity-link" data-open-item="${escapeHtml(event.itemId)}" type="button" aria-label="Open ${escapeHtml(event.title)}">${body}<span class="activity-open" aria-hidden="true">↗</span></button>`;
   }).join("");
 };
 

@@ -686,6 +686,13 @@ const render = () => {
   renderStream();
 };
 
+const renderActivityScope = () => {
+  renderMetrics();
+  renderSourceVisual();
+  renderFocus();
+  renderStream();
+};
+
 const handleEvent = (event) => {
   let payload;
   try { payload = JSON.parse(event.data); } catch { return; }
@@ -816,7 +823,7 @@ const clearFilters = () => {
   $("#search-clear").hidden = true;
   $("#course-filter").value = "";
   syncFilterControls();
-  renderStream();
+  renderActivityScope();
 };
 
 const selectView = (view) => {
@@ -833,6 +840,7 @@ const selectView = (view) => {
   });
   $("#crumb-view").textContent = control ? "Overview" : "All activity";
   syncFilterControls();
+  if (!control && state.data !== null) renderActivityScope();
 };
 
 $("#run-button").addEventListener("click", () => runPulse(false));
@@ -849,7 +857,7 @@ $("#search-input").addEventListener("input", (event) => {
   state.query = event.target.value.trim();
   state.streamLimit = 50;
   $("#search-clear").hidden = state.query.length === 0;
-  renderStream();
+  renderActivityScope();
 });
 $("#search-clear").addEventListener("click", () => {
   $("#search-input").value = "";
@@ -857,13 +865,13 @@ $("#search-clear").addEventListener("click", () => {
   state.streamLimit = 50;
   $("#search-clear").hidden = true;
   $("#search-input").focus();
-  renderStream();
+  renderActivityScope();
 });
 $("#course-filter").addEventListener("change", (event) => {
   state.course = event.target.value;
   state.streamLimit = 50;
   window.localStorage.setItem("morning-agent:course", state.course);
-  renderStream();
+  renderActivityScope();
 });
 $("#stream-more").addEventListener("click", () => {
   state.streamLimit += 50;
@@ -887,8 +895,6 @@ const openFilteredView = (filter) => {
   $("#search-clear").hidden = true;
   $("#course-filter").value = "";
   selectView("everything");
-  syncFilterControls();
-  renderStream();
 };
 const activateViewTarget = (button) => {
   if (button.dataset.filterTarget !== undefined) {
@@ -903,16 +909,13 @@ $("[data-deadline-view]").addEventListener("click", () => {
   state.streamLimit = 50;
   window.localStorage.setItem("morning-agent:filter", state.filter);
   selectView("everything");
-  syncFilterControls();
-  renderStream();
 });
 $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
   state.streamLimit = 50;
   window.localStorage.setItem("morning-agent:filter", state.filter);
-  if (button.closest(".source-stack")) selectView("everything");
-  syncFilterControls();
-  renderStream();
+  if (button.closest(".source-stack") || state.view !== "everything") selectView("everything");
+  else renderActivityScope();
 }));
 document.addEventListener("click", (event) => {
   const clearButton = event.target.closest("[data-clear-filters]");

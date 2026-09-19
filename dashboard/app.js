@@ -25,6 +25,7 @@ const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
 const sourceMeta = {
   email: { label: "Inbox", icon: "@", className: "email" },
   moodle: { label: "Moodle", icon: "M", className: "moodle" },
+  work: { label: "Work", icon: "⌘", className: "work" },
   github: { label: "GitHub", icon: "⌘", className: "work" },
   calendar: { label: "Calendar", icon: "◷", className: "calendar" },
   downloads: { label: "Files", icon: "↓", className: "files" },
@@ -400,30 +401,28 @@ const renderDeadlines = () => {
 
 const renderSourceVisual = () => {
   const counts = state.data?.sources ?? {};
-  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  const sourceOrder = ["email", "github", "moodle", "calendar", "downloads", "news", "edstem"];
-  const colors = {
-    email: "var(--lime)",
-    github: "var(--cyan)",
-    moodle: "var(--violet)",
-    calendar: "var(--cyan)",
-    downloads: "var(--coral)",
-    news: "var(--gold)",
-    edstem: "var(--coral)",
-  };
+  const sourceGroups = [
+    { key: "email", label: source("email").label, count: counts.email ?? 0, color: "var(--lime)" },
+    { key: "moodle", label: source("moodle").label, count: counts.moodle ?? 0, color: "var(--violet)" },
+    { key: "work", label: source("work").label, count: (counts.github ?? 0) + (counts.calendar ?? 0), color: "var(--cyan)" },
+    { key: "news", label: source("news").label, count: counts.news ?? 0, color: "var(--gold)" },
+    { key: "edstem", label: source("edstem").label, count: counts.edstem ?? 0, color: "var(--coral)" },
+    { key: "downloads", label: source("downloads").label, count: counts.downloads ?? 0, color: "var(--coral)" },
+  ];
+  const total = sourceGroups.reduce((sum, group) => sum + group.count, 0);
   let cursor = 0;
-  const segments = sourceOrder.map((name) => {
-    const count = counts[name] ?? 0;
+  const segments = sourceGroups.map((group) => {
+    const count = group.count;
     const start = total === 0 ? 0 : cursor / total * 100;
     cursor += count;
     const end = total === 0 ? 0 : cursor / total * 100;
-    return `${colors[name]} ${start}% ${end}%`;
+    return `${group.color} ${start}% ${end}%`;
   });
   $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
-  $("#source-bars").innerHTML = sourceOrder.map((name) => {
-    const count = counts[name] ?? 0;
+  $("#source-bars").innerHTML = sourceGroups.map((group) => {
+    const count = group.count;
     const width = total === 0 || count === 0 ? 0 : Math.max(4, count / total * 100);
-    return `<div class="source-bar-row"><span>${escapeHtml(source(name).label)}</span><div class="source-bar-track"><div class="source-bar-fill" style="--bar-color:${colors[name]};width:${width}%"></div></div><b>${count}</b></div>`;
+    return `<div class="source-bar-row"><span>${escapeHtml(group.label)}</span><div class="source-bar-track"><div class="source-bar-fill" style="--bar-color:${group.color};width:${width}%"></div></div><b>${count}</b></div>`;
   }).join("");
 };
 

@@ -45,6 +45,7 @@ const allowedOutlookHosts = new Set([
   "outlook.office.com",
   "outlook.office365.com",
   "outlook.live.com",
+  "outlook.cloud.microsoft",
 ]);
 
 const cleanText = (value: string): string => value.replace(/\s+/gu, " ").trim();
@@ -122,7 +123,7 @@ export class OutlookBrowserSession {
     const baseUrl = new URL(options.baseUrl);
     if (!isHttpUrl(baseUrl) || baseUrl.protocol !== "https:" || !isAllowedOutlookHost(baseUrl.toString())) {
       throw new Error(
-        "OUTLOOK_BASE_URL must be an HTTPS Outlook Web URL on outlook.office.com, outlook.office365.com, or outlook.live.com.",
+        "OUTLOOK_BASE_URL must be an HTTPS Outlook Web URL on an official Outlook host.",
       );
     }
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;

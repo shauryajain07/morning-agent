@@ -68,6 +68,15 @@ export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
     options.maxCoursePages = maxCoursePages;
   }
 
+  const maxDetailPagesValue = nonEmptyEnvironmentValue("MOODLE_MAX_DETAIL_PAGES");
+  if (maxDetailPagesValue !== undefined) {
+    const maxDetailPages = Number(maxDetailPagesValue);
+    if (!Number.isInteger(maxDetailPages) || maxDetailPages < 1 || maxDetailPages > 200) {
+      throw new Error("MOODLE_MAX_DETAIL_PAGES must be an integer from 1 to 200.");
+    }
+    options.maxDetailPages = maxDetailPages;
+  }
+
   return options;
 };
 

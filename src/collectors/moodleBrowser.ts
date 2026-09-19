@@ -35,6 +35,7 @@ export type MoodleBrowserOptions = {
   timeoutMs?: number;
   loginTimeoutMs?: number;
   maxCoursePages?: number;
+  maxDetailPages?: number;
 };
 
 export class MoodleAuthenticationRequiredError extends Error {
@@ -50,6 +51,7 @@ export class MoodleAuthenticationRequiredError extends Error {
 const defaultTimeoutMs = 15_000;
 const defaultLoginTimeoutMs = 5 * 60 * 1_000;
 const defaultMaxCoursePages = 12;
+const defaultMaxDetailPages = 40;
 const defaultProfileDirectory = join(process.cwd(), ".browser-profile");
 const sensitiveQueryParameter = /^(?:token|wstoken|sesskey|session|password|pass|key)$/iu;
 const courseCodePattern = new RegExp(`\\b(?:${courseCodes.join("|")})\\b`, "iu");
@@ -236,6 +238,32 @@ export const discoverCourseLinks = (
       continue;
     }
     if (!path.includes("/course/") && !path.includes("course/view")) continue;
+
+    const canonical = toCanonicalMoodleUrl(link.href);
+    if (canonical !== undefined) links.add(canonical);
+  }
+  return Array.from(links);
+};
+
+/** Find activity pages whose own DOM may contain the actual Moodle file link. */
+export const discoverMoodleDetailLinks = (
+  snapshot: MoodlePageSnapshot,
+  baseUrl: string,
+): string[] => {
+  const origin = new URL(baseUrl).origin;
+  const links = new Set<string>();
+  for (const link of snapshot.links) {
+    if (!sameOrigin(link.href, origin)) continue;
+
+    let path = "";
+    try {
+      path = new URL(link.href).pathname.toLowerCase();
+    } catch {
+      continue;
+    }
+
+    const isActivityPage = /\/mod\/(?:resource|folder|assign|quiz|workshop)\//u.test(path);
+    if (!isActivityPage) continue;
 
     const canonical = toCanonicalMoodleUrl(link.href);
     if (canonical !== undefined) links.add(canonical);
@@ -439,7 +467,7 @@ const isCourseFileCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSna
   if (path.includes("/pluginfile.php")) {
     return (
       /\.(?:pdf|docx?|pptx?|xlsx?|zip|txt|csv|mp4|mov|png|jpe?g)(?:$|[?#])/iu.test(link.href) ||
-      /lecture|slides|notes|file|reading|worksheet/iu.test(text)
+      /download|attachment|lecture|slides|notes|file|reading|worksheet/iu.test(text)
     );
   }
   return /\.(?:pdf|docx?|pptx?|xlsx?|zip|txt|csv|mp4|mov|png|jpe?g)(?:$|[?#])/iu.test(link.href);
@@ -564,13 +592,38 @@ export const collectMoodleItemsFromBrowser = async (
       0,
       options.maxCoursePages ?? defaultMaxCoursePages,
     );
+    const visited = new Set<string>();
+    const detailLinks: string[] = [];
 
     for (const courseLink of courseLinks) {
       try {
-        snapshots.push(await session.goto(courseLink));
+        const canonicalCourseLink = toCanonicalMoodleUrl(courseLink) ?? courseLink;
+        if (visited.has(canonicalCourseLink)) continue;
+        visited.add(canonicalCourseLink);
+        const courseSnapshot = await session.goto(courseLink);
+        snapshots.push(courseSnapshot);
+        detailLinks.push(...discoverMoodleDetailLinks(courseSnapshot, options.baseUrl));
       } catch (error: unknown) {
         if (error instanceof MoodleAuthenticationRequiredError) throw error;
         // One unavailable course should not discard the rest of the read-only collection.
+      }
+    }
+
+    let detailCount = 0;
+    while (detailLinks.length > 0 && detailCount < (options.maxDetailPages ?? defaultMaxDetailPages)) {
+      const detailLink = detailLinks.shift();
+      if (detailLink === undefined) continue;
+      const canonicalDetailLink = toCanonicalMoodleUrl(detailLink) ?? detailLink;
+      if (visited.has(canonicalDetailLink)) continue;
+      visited.add(canonicalDetailLink);
+      try {
+        const detailSnapshot = await session.goto(detailLink);
+        snapshots.push(detailSnapshot);
+        detailLinks.push(...discoverMoodleDetailLinks(detailSnapshot, options.baseUrl));
+        detailCount += 1;
+      } catch (error: unknown) {
+        if (error instanceof MoodleAuthenticationRequiredError) throw error;
+        // A single unavailable activity should not discard other read-only results.
       }
     }
 

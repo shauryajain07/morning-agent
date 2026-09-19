@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractMoodleItems,
+  discoverMoodleDetailLinks,
   parseMoodleDate,
   type MoodlePageSnapshot,
 } from "../src/collectors/moodleBrowser.js";
@@ -123,5 +124,33 @@ describe("Moodle browser adapter", () => {
     expect(result.assignments[0]?.title).toContain("ASSIGNMENT 1");
     expect(result.courseFiles).toHaveLength(1);
     expect(result.courseFiles[0]?.metadata.kind).toBe("course_file");
+  });
+
+  it("discovers bounded same-origin activity pages for nested files", () => {
+    const snapshot: MoodlePageSnapshot = {
+      url: "https://moodle.example/course/view.php?id=10",
+      title: "MATH1851",
+      bodyText: "",
+      links: [
+        {
+          href: "https://moodle.example/mod/folder/view.php?id=44",
+          text: "Week 3 files",
+          context: "Week 3 files",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://files.example.com/lecture.pdf",
+          text: "External file",
+          context: "External file",
+          title: "",
+          ariaLabel: "",
+        },
+      ],
+    };
+
+    expect(discoverMoodleDetailLinks(snapshot, "https://moodle.example/my/")).toEqual([
+      "https://moodle.example/mod/folder/view.php?id=44",
+    ]);
   });
 });

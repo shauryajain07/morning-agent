@@ -145,7 +145,7 @@ const confidenceOfNoul = (value: number): number => Math.max(value, 1 - value);
 const createQuestions = (item: AgentItem): Questions => {
   if (item.source === "downloads") return {};
 
-  if (item.source === "ed" || item.source === "news") {
+  if (item.source === "edstem" || item.source === "news") {
     return {
       worthReading: noul(
         "Is this article worth the user's limited reading time this morning?",
@@ -276,7 +276,7 @@ export class JevDecisionEngine implements DecisionEngine {
     const answerMap = answers as JevAnswerMap;
     const records: DecisionRecord[] = [];
 
-    if (item.source === "ed" || item.source === "news") {
+    if (item.source === "edstem" || item.source === "news") {
       const worthReadingValue = readNoul(answerMap, "worthReading");
       const category = readChoice(answerMap, "newsCategory");
       const worthReading: NewsWorthReadingDecision = {

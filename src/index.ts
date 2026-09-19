@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { collectCalendarItems } from "./collectors/calendar.js";
 import { collectDownloads } from "./collectors/downloads.js";
 import { collectEmailItems } from "./collectors/email.js";
-import { collectEdItems } from "./collectors/ed.js";
+import { collectEdStemItems } from "./collectors/edstem.js";
 import { collectGitHubItems } from "./collectors/github.js";
 import { collectNewsItems } from "./collectors/news.js";
 import { collectOutlookEmailItems } from "./collectors/outlook.js";
@@ -96,12 +96,12 @@ const collectRealItems = async (): Promise<AgentItem[]> => {
     if (isMissingPathError(error)) return [];
     throw error;
   });
-  const [calendar, email, outlookEmail, github, ed, news, announcements, assignments, courseFiles] = await Promise.all([
+  const [calendar, email, outlookEmail, github, edstem, news, announcements, assignments, courseFiles] = await Promise.all([
     collectCalendarItems(),
     collectEmailItems(),
     collectOutlookEmailItems(),
     collectOptionalSource("GitHub", collectGitHubItems),
-    collectOptionalSource("ed.com", collectEdItems),
+    collectOptionalSource("EdStem", collectEdStemItems),
     collectOptionalSource("News", collectNewsItems),
     moodle.getAnnouncements(),
     moodle.getAssignments(),
@@ -113,7 +113,7 @@ const collectRealItems = async (): Promise<AgentItem[]> => {
     ...email,
     ...outlookEmail,
     ...github,
-    ...ed,
+    ...edstem,
     ...news,
     ...announcements,
     ...assignments,

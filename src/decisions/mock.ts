@@ -36,10 +36,10 @@ export class MockDecisionEngine implements DecisionEngine {
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
     if (item.source === "downloads") return [];
 
-    if (item.source === "ed" || item.source === "news") {
+    if (item.source === "edstem" || item.source === "news") {
       const worthReading: NewsWorthReadingDecision = {
         worthReading: true,
-        category: item.source === "ed" ? "technology" : "other",
+        category: item.source === "edstem" ? "education" : "other",
         confidence,
       };
       return [record(item, "worthReading", worthReading)];

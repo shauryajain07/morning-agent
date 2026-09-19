@@ -4,7 +4,7 @@ export const agentSources = [
   "github",
   "downloads",
   "moodle",
-  "ed",
+  "edstem",
   "news",
 ] as const;
 

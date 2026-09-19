@@ -30,12 +30,12 @@ describe("decision outputs", () => {
 
   it("gives articles a typed Jev-style worth-reading decision", async () => {
     const item: AgentItem = {
-      id: "news:test-story",
-      source: "news",
-      title: "A useful technology story",
-      content: "A short article excerpt.",
-      url: "https://example.com/story",
-      metadata: { kind: "news_article" },
+      id: "edstem:test-thread",
+      source: "edstem",
+      title: "A useful course discussion",
+      content: "A short thread excerpt.",
+      url: "https://us.edstem.org/us/courses/146267/discussion/42",
+      metadata: { kind: "thread", platform: "edstem" },
     };
 
     const decisions = await new MockDecisionEngine().evaluateItem(item);
@@ -43,7 +43,7 @@ describe("decision outputs", () => {
     expect(decisions).toEqual([
       expect.objectContaining({
         decision: "worthReading",
-        output: expect.objectContaining({ worthReading: true, category: "other" }),
+        output: expect.objectContaining({ worthReading: true, category: "education" }),
       }),
     ]);
   });

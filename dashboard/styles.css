@@ -78,7 +78,7 @@ button { color: inherit; }
 .source-glyph.moodle { color: var(--violet); }
 .source-glyph.work { color: var(--cyan); }
 .source-glyph.news { color: var(--gold); }
-.source-glyph.ed { color: var(--coral); }
+.source-glyph.edstem { color: var(--coral); }
 .sidebar-spacer { flex: 1; min-height: 45px; }
 .privacy-card { display: flex; gap: 10px; align-items: center; margin: 0 4px 15px; padding: 12px 10px; border: 1px solid rgba(211, 255, 112, .12); border-radius: 10px; background: rgba(211, 255, 112, .045); }
 .privacy-card strong { display: block; font-size: 11px; font-weight: 650; }

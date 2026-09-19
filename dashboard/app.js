@@ -14,7 +14,7 @@ const sourceMeta = {
   calendar: { label: "Calendar", icon: "◷", className: "calendar" },
   downloads: { label: "Files", icon: "↓", className: "files" },
   news: { label: "Daily news", icon: "✦", className: "news" },
-  ed: { label: "ed.com", icon: "e", className: "ed" },
+  edstem: { label: "EdStem", icon: "E", className: "edstem" },
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -96,7 +96,7 @@ const renderMetrics = () => {
   $("#side-moodle-count").textContent = metrics.moodle ?? 0;
   $("#side-work-count").textContent = metrics.work ?? 0;
   $("#side-news-count").textContent = metrics.news ?? 0;
-  $("#side-ed-count").textContent = metrics.ed ?? 0;
+  $("#side-edstem-count").textContent = metrics.edstem ?? 0;
   $("#everything-count").textContent = `${metrics.total ?? 0} SIGNALS`;
   $("#donut-total").textContent = metrics.total ?? 0;
 };
@@ -185,7 +185,7 @@ const renderSourceVisual = () => {
     return `${colors[index % colors.length]} ${start}% ${end}%`;
   });
   $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
-  const labels = ["email", "github", "moodle", "calendar", "downloads", "news", "ed"];
+  const labels = ["email", "github", "moodle", "calendar", "downloads", "news", "edstem"];
   $("#source-bars").innerHTML = labels.map((name) => {
     const count = counts[name] ?? 0;
     const width = total === 0 ? 0 : Math.max(4, count / total * 100);
@@ -214,7 +214,7 @@ const filteredItems = () => {
       || (state.filter === "moodle" && item.source === "moodle")
       || (state.filter === "email" && item.source === "email")
       || (state.filter === "news" && item.source === "news")
-      || (state.filter === "ed" && item.source === "ed");
+      || (state.filter === "edstem" && item.source === "edstem");
     const haystack = `${item.title} ${item.content ?? ""} ${item.source}`.toLowerCase();
     return matchesFilter && haystack.includes(state.query.toLowerCase());
   });

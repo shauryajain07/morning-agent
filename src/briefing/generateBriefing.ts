@@ -83,7 +83,7 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
 
     if (item.source === "github" && input.newItemIds.has(item.id)) github.push(item.title);
 
-    if ((item.source === "news" || item.source === "ed") && input.newItemIds.has(item.id)) {
+    if ((item.source === "news" || item.source === "edstem") && input.newItemIds.has(item.id)) {
       const readingDecision = decisionFor(input.decisions, item.id, "worthReading");
       if (readingDecision?.output !== undefined && "worthReading" in readingDecision.output && readingDecision.output.worthReading) {
         news.push(item.title);

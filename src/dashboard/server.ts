@@ -88,7 +88,7 @@ type DashboardState = {
     total: number;
     emails: number;
     github: number;
-    ed: number;
+    edstem: number;
     news: number;
     work: number;
     moodle: number;
@@ -279,7 +279,7 @@ const buildDashboardState = (): DashboardState => {
         total: items.length,
         emails: sourceCounts.email ?? 0,
         github: sourceCounts.github ?? 0,
-        ed: sourceCounts.ed ?? 0,
+        edstem: sourceCounts.edstem ?? 0,
         news: sourceCounts.news ?? 0,
         work: (sourceCounts.github ?? 0) + (sourceCounts.calendar ?? 0),
         moodle: sourceCounts.moodle ?? 0,

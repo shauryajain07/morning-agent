@@ -54,7 +54,8 @@ const defaultMaxCoursePages = 12;
 const defaultMaxDetailPages = 40;
 const defaultProfileDirectory = join(process.cwd(), ".browser-profile");
 const sensitiveQueryParameter = /^(?:token|wstoken|sesskey|session|password|pass|key)$/iu;
-const courseCodePattern = new RegExp(`\\b(?:${courseCodes.join("|")})\\b`, "iu");
+const courseCodePattern = new RegExp(`\\b(?:${courseCodes.join("|")})(?=\\b|[_-])`, "iu");
+const math1851AbCoursePattern = /\bMATH1851[_\s-]*1AB\b/iu;
 
 const cleanText = (value: string): string => value.replace(/\s+/gu, " ").trim();
 
@@ -87,6 +88,17 @@ const sameOrigin = (value: string, origin: string): boolean => {
   }
 };
 
+const isAccessibilitySkipLink = (link: MoodleLinkSnapshot): boolean => {
+  const label = cleanText(`${link.text} ${link.ariaLabel} ${link.title}`);
+  if (!/^skip(?:\s+to)?(?:\s|$)/iu.test(label)) return false;
+
+  try {
+    return new URL(link.href).hash.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 const snapshotScript = String.raw`(() => {
   const clean = (value) => (value || "").replace(/\s+/gu, " ").trim();
   const contextFor = (anchor) => {
@@ -107,7 +119,9 @@ const snapshotScript = String.raw`(() => {
       title: clean(anchor.getAttribute("title")),
       ariaLabel: clean(anchor.getAttribute("aria-label")),
     };
-    if (link.href.length > 0) links.push(link);
+    const label = clean([link.text, link.ariaLabel, link.title].filter(Boolean).join(" "));
+    const isAccessibilitySkipLink = /^skip(?:\s+to)?(?:\s|$)/iu.test(label) && anchor.hash.length > 0;
+    if (link.href.length > 0 && !isAccessibilitySkipLink) links.push(link);
   }
   return {
     url: window.location.href,
@@ -226,8 +240,9 @@ export const discoverCourseLinks = (
   baseUrl: string,
 ): string[] => {
   const origin = new URL(baseUrl).origin;
-  const links = new Set<string>();
+  const candidates: Array<{ canonical: string; value: string }> = [];
   for (const link of snapshot.links) {
+    if (isAccessibilitySkipLink(link)) continue;
     const value = `${link.href} ${link.text} ${link.context} ${link.title}`;
     if (!courseCodeFromText(value) || !sameOrigin(link.href, origin)) continue;
 
@@ -237,10 +252,18 @@ export const discoverCourseLinks = (
     } catch {
       continue;
     }
-    if (!path.includes("/course/") && !path.includes("course/view")) continue;
+    if (!path.endsWith("/course/view.php") && !path.endsWith("/course/view")) continue;
 
     const canonical = toCanonicalMoodleUrl(link.href);
-    if (canonical !== undefined) links.add(canonical);
+    if (canonical !== undefined) candidates.push({ canonical, value });
+  }
+
+  const hasMath1851AbCourse = candidates.some(({ value }) => math1851AbCoursePattern.test(value));
+  const links = new Set<string>();
+  for (const candidate of candidates) {
+    const isMath1851Course = courseCodeFromText(candidate.value) === "MATH1851" || math1851AbCoursePattern.test(candidate.value);
+    if (hasMath1851AbCourse && isMath1851Course && !math1851AbCoursePattern.test(candidate.value)) continue;
+    links.add(candidate.canonical);
   }
   return Array.from(links);
 };
@@ -253,6 +276,7 @@ export const discoverMoodleDetailLinks = (
   const origin = new URL(baseUrl).origin;
   const links = new Set<string>();
   for (const link of snapshot.links) {
+    if (isAccessibilitySkipLink(link)) continue;
     if (!sameOrigin(link.href, origin)) continue;
 
     let path = "";
@@ -570,6 +594,7 @@ export const extractMoodleItems = (
 
   for (const snapshot of snapshots) {
     for (const link of snapshot.links) {
+      if (isAccessibilitySkipLink(link)) continue;
       const target = isAnnouncementCandidate(snapshot, link)
         ? announcements
         : isAssignmentCandidate(snapshot, link)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractMoodleItems,
+  discoverCourseLinks,
   discoverMoodleDetailLinks,
   parseMoodleDate,
   type MoodlePageSnapshot,
@@ -151,6 +152,48 @@ describe("Moodle browser adapter", () => {
 
     expect(discoverMoodleDetailLinks(snapshot, "https://moodle.example/my/")).toEqual([
       "https://moodle.example/mod/folder/view.php?id=44",
+    ]);
+  });
+
+  it("ignores Moodle skip links and selects the MATH1851 AB course", () => {
+    const snapshot: MoodlePageSnapshot = {
+      url: "https://moodle.example/",
+      title: "Home | hkumoodle",
+      bodyText: "",
+      links: [
+        {
+          href: "https://moodle.example/#maincontent",
+          text: "Skip to main content",
+          context: "Skip to main content",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/course/view.php?id=146267",
+          text: "Course name MATH1851_1AB Calculus and ordinary differential equations",
+          context: "MATH1851_1AB",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/course/view.php?id=142655",
+          text: "Course name MATH1851 Calculus and ordinary differential equations [Section 1B]",
+          context: "MATH1851 Section 1B",
+          title: "",
+          ariaLabel: "",
+        },
+        {
+          href: "https://moodle.example/course/index.php",
+          text: "All courses",
+          context: "MATH1851_1AB and MATH1851",
+          title: "",
+          ariaLabel: "",
+        },
+      ],
+    };
+
+    expect(discoverCourseLinks(snapshot, "https://moodle.example/my/")).toEqual([
+      "https://moodle.example/course/view.php?id=146267",
     ]);
   });
 

@@ -766,6 +766,7 @@ const render = () => {
 };
 
 const renderActivityScope = () => {
+  syncFilterControls();
   renderMetrics();
   renderSourceVisual();
   renderFocus();

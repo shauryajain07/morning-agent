@@ -7,6 +7,7 @@ const state = {
   filter: validFilters.has(persistedFilter) ? persistedFilter : "all",
   course: persistedCourse,
   query: "",
+  streamLimit: 50,
   view: window.localStorage.getItem("morning-agent:view") === "everything" ? "everything" : "control",
   events: [],
   pipeline: {},
@@ -39,12 +40,18 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character
 
 const formatTime = (value) => {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("en-HK", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-HK", { hour: "2-digit", minute: "2-digit" }).format(date)
+    : "—";
 };
 
 const formatDate = (value) => {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short" }).format(new Date(value));
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short" }).format(date)
+    : "—";
 };
 
 const relativeTime = (value) => {
@@ -206,7 +213,9 @@ const renderActivity = () => {
       ? { title: "Pulse in progress", detail: `${humanize(run.stage ?? "collect")} stage is active`, tone: "lime", at: run.lastEventAt ?? new Date().toISOString() }
       : run.completedAt
         ? { title: "Last pulse complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`, tone: "lime", at: run.completedAt }
-        : { title: "Dashboard armed", detail: "Waiting for a pulse", tone: "neutral", at: new Date().toISOString() };
+        : state.data?.metrics?.total
+          ? { title: "Local state loaded", detail: `${state.data.metrics.total} signals ready · run a pulse for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
+          : { title: "Dashboard armed", detail: "Waiting for a pulse", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : [fallback];
   $("#activity-list").innerHTML = events.map((event) => `<div class="activity-row"><span class="activity-pip ${escapeHtml(event.tone)}"></span><div><div class="activity-title">${escapeHtml(event.title)}</div><div class="activity-detail">${escapeHtml(event.detail)}</div></div><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span></div>`).join("");
 };
@@ -247,7 +256,7 @@ const renderSourceVisual = () => {
   $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
   $("#source-bars").innerHTML = sourceOrder.map((name) => {
     const count = counts[name] ?? 0;
-    const width = total === 0 ? 0 : Math.max(4, count / total * 100);
+    const width = total === 0 || count === 0 ? 0 : Math.max(4, count / total * 100);
     return `<div class="source-bar-row"><span>${escapeHtml(source(name).label)}</span><div class="source-bar-track"><div class="source-bar-fill" style="--bar-color:${colors[name]};width:${width}%"></div></div><b>${count}</b></div>`;
   }).join("");
 };
@@ -303,13 +312,16 @@ const filteredItems = () => {
 const renderStream = () => {
   const items = filteredItems();
   const decisions = state.data?.decisions ?? [];
+  const visibleItems = items.slice(0, state.streamLimit);
   const filterSuffix = state.query || state.course ? " · filtered" : "";
   $("#stream-result-count").textContent = `${items.length} signal${items.length === 1 ? "" : "s"}${filterSuffix}`;
   if (items.length === 0) {
     $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No signals here yet.</strong><p>Run a pulse or loosen the filter to see more of your day.</p></div></div>';
+    $("#stream-pagination").textContent = "Showing 0 signals";
+    $("#stream-more").hidden = true;
     return;
   }
-  $("#stream-table").innerHTML = items.map((item) => {
+  $("#stream-table").innerHTML = visibleItems.map((item) => {
     const meta = source(item.source);
     const itemDecisions = decisions.filter((decision) => decision.itemId === item.id);
     const weakest = itemDecisions.slice().sort((left, right) => confidence(left) - confidence(right))[0];
@@ -322,6 +334,10 @@ const renderStream = () => {
     const subtitle = [itemCourse?.label, item.content ?? ""].filter(Boolean).join(" · ").slice(0, 120);
     return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
+  $("#stream-pagination").textContent = items.length > visibleItems.length
+    ? `Showing ${visibleItems.length} of ${items.length} signals`
+    : `Showing all ${items.length} signal${items.length === 1 ? "" : "s"}`;
+  $("#stream-more").hidden = visibleItems.length >= items.length;
 };
 
 const safeHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value) ? value : "";
@@ -456,19 +472,26 @@ $$('[data-view]').forEach((button) => button.addEventListener("click", () => sel
 $("#run-button").addEventListener("click", () => runPulse(false));
 $("#search-input").addEventListener("input", (event) => {
   state.query = event.target.value.trim();
+  state.streamLimit = 50;
   $("#search-clear").hidden = state.query.length === 0;
   renderStream();
 });
 $("#search-clear").addEventListener("click", () => {
   $("#search-input").value = "";
   state.query = "";
+  state.streamLimit = 50;
   $("#search-clear").hidden = true;
   $("#search-input").focus();
   renderStream();
 });
 $("#course-filter").addEventListener("change", (event) => {
   state.course = event.target.value;
+  state.streamLimit = 50;
   window.localStorage.setItem("morning-agent:course", state.course);
+  renderStream();
+});
+$("#stream-more").addEventListener("click", () => {
+  state.streamLimit += 50;
   renderStream();
 });
 const syncFilterControls = () => {
@@ -480,6 +503,7 @@ const syncFilterControls = () => {
 };
 $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
+  state.streamLimit = 50;
   window.localStorage.setItem("morning-agent:filter", state.filter);
   if (button.closest(".source-stack")) selectView("everything");
   syncFilterControls();

@@ -13,6 +13,15 @@ export type DownloadCollectorOptions = {
 
 const defaultLookbackMs = 24 * 60 * 60 * 1000;
 
+const sensitiveDownloadPattern = /(secret|credential|token|password)/iu;
+const temporaryDownloadPattern = /\.(?:crdownload|download|part|tmp)$/iu;
+
+export const shouldIgnoreDownload = (filename: string): boolean =>
+  filename.startsWith(".") || temporaryDownloadPattern.test(filename);
+
+export const isSensitiveDownloadName = (filename: string): boolean =>
+  sensitiveDownloadPattern.test(filename);
+
 export const collectDownloads = async (options: DownloadCollectorOptions = {}): Promise<AgentItem[]> => {
   const directory = options.directory ?? join(homedir(), "Downloads");
   const now = options.now ?? new Date();
@@ -21,7 +30,7 @@ export const collectDownloads = async (options: DownloadCollectorOptions = {}): 
   const items: AgentItem[] = [];
 
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
+    if (!entry.isFile() || shouldIgnoreDownload(entry.name)) continue;
     const path = join(directory, entry.name);
     const details = await stat(path);
     const createdAt = details.birthtime > details.mtime ? details.birthtime : details.mtime;

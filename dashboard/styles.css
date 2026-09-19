@@ -246,12 +246,15 @@ h1 em { color: var(--cyan); font-style: normal; }
 .stream-row:hover { background: rgba(124, 232, 255, .04); }
 .stream-signal { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center; min-width: 0; }
 .stream-icon { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid currentColor; border-radius: 8px; font-family: "SF Mono", ui-monospace, monospace; font-size: 10px; font-weight: 700; }
-.stream-title { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.stream-subtitle { overflow: hidden; margin-top: 3px; color: var(--dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.stream-title { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.stream-subtitle { display: block; overflow: hidden; margin-top: 3px; color: var(--dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .stream-source, .stream-when { color: var(--muted); font-family: "SF Mono", ui-monospace, monospace; font-size: 10px; text-transform: uppercase; }
 .stream-state { display: inline-flex; width: fit-content; padding: 5px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); font-family: "SF Mono", ui-monospace, monospace; font-size: 9px; text-transform: uppercase; }
 .stream-state.is-hot { color: var(--gold); border-color: rgba(255, 215, 110, .22); background: rgba(255, 215, 110, .06); }
 .stream-state.is-unread { color: var(--cyan); border-color: rgba(124, 232, 255, .22); background: rgba(124, 232, 255, .06); }
+.stream-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 13px 22px 15px; color: var(--dim); font-family: "SF Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+.load-more { padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--cyan); background: rgba(124, 232, 255, .04); font-family: inherit; font-size: 9px; cursor: pointer; }
+.load-more:hover { border-color: rgba(124, 232, 255, .4); background: rgba(124, 232, 255, .09); }
 
 .stream-icon.email, .source-glyph.email { color: var(--lime); }
 .stream-icon.moodle, .source-glyph.moodle { color: var(--violet); }
@@ -341,6 +344,7 @@ h1 em { color: var(--cyan); font-style: normal; }
   .source-visual { grid-template-columns: 1fr; justify-items: center; }
   .source-bars { width: 100%; }
   .stream-result-count { margin-top: 7px; }
+  .stream-footer { padding: 12px 16px 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

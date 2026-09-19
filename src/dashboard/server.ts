@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { runMorning } from "../index.js";
 import { defaultSettings } from "../config/settings.js";
+import { isSensitiveDownloadName, shouldIgnoreDownload } from "../collectors/downloads.js";
 import { createStore } from "../storage/db.js";
 import {
   agentSources,
@@ -203,11 +204,19 @@ const applyRunEvent = (event: MorningRunEvent): void => {
 };
 
 const serializeItem = (item: StoredAgentItem): SerializedItem => {
+  const sensitiveDownload = item.source === "downloads" && isSensitiveDownloadName(item.title);
+  const metadata = sensitiveDownload
+    ? Object.fromEntries(Object.entries(item.metadata).map(([key, value]) => {
+        if (key === "filename") return [key, "[sensitive filename redacted]"];
+        if (/^(?:path|sourcePath|destinationPath)$/iu.test(key)) return [key, "[local path redacted]"];
+        return [key, value];
+      }))
+    : item.metadata;
   const serialized: SerializedItem = {
     id: item.id,
     source: item.source,
-    title: item.title,
-    metadata: item.metadata,
+    title: sensitiveDownload ? "[Sensitive downloaded file]" : item.title,
+    metadata,
     observedAt: item.observedAt.toISOString(),
   };
   if (item.content !== undefined) serialized.content = item.content;
@@ -228,7 +237,9 @@ const serializeDecision = (decision: DecisionRecord): SerializedDecision => ({
 const buildDashboardState = (): DashboardState => {
   const store = createStore({ dbPath: defaultSettings.databasePath });
   try {
-    const items = store.getItems(1_000);
+    const items = store.getItems(1_000).filter(
+      (item) => !(item.source === "downloads" && shouldIgnoreDownload(item.title)),
+    );
     const latestDecisions = new Map<string, DecisionRecord>();
     for (const decision of store.getDecisions()) {
       latestDecisions.set(`${decision.itemId}:${decision.decision}`, decision);
@@ -268,8 +279,12 @@ const buildDashboardState = (): DashboardState => {
       agentSources.map((source) => [source, 0]),
     );
     for (const item of items) sourceCounts[item.source] = (sourceCounts[item.source] ?? 0) + 1;
-    const deadlineCutoff = Date.now() + 7 * 24 * 60 * 60 * 1_000;
-    const deadlines = store.getDeadlines().filter((deadline) => deadline.deadline.getTime() <= deadlineCutoff);
+    const deadlineNow = Date.now();
+    const deadlineCutoff = deadlineNow + 7 * 24 * 60 * 60 * 1_000;
+    const deadlines = store.getDeadlines().filter((deadline) => {
+      const timestamp = deadline.deadline.getTime();
+      return timestamp >= deadlineNow && timestamp <= deadlineCutoff;
+    });
     const actions = store.getActions();
 
     return {

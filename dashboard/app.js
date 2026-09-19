@@ -358,38 +358,44 @@ const renderHeader = () => {
   const isReconnecting = connectionStatus === "reconnecting";
   const hasRunHistory = Boolean(run.completedAt);
   const hasSnapshot = state.data !== null;
-  const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
+  const label = run.active ? "Processing" : run.error ? "Needs attention" : !hasSnapshot ? "Loading" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
-  $("#pipeline-kicker").textContent = run.active ? "Live run" : hasRunHistory ? "Last run" : hasSnapshot ? "Snapshot" : "Run status";
-  $("#pipeline-title").textContent = run.active ? "Collecting now" : hasRunHistory ? "Collection" : hasSnapshot ? "Saved activity" : "First run";
-  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : isReconnecting ? "Offline" : "Idle";
+  $("#pipeline-kicker").textContent = run.active ? "Live run" : run.error ? "Last run" : !hasSnapshot ? "Connection" : hasRunHistory ? "Last run" : "Snapshot";
+  $("#pipeline-title").textContent = run.active ? "Collecting now" : run.error ? "Collection stopped" : !hasSnapshot ? "Reading state" : hasRunHistory ? "Collection" : "Saved activity";
+  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : !hasSnapshot ? "Loading" : isReconnecting ? "Offline" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", run.active);
   $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !run.active && !run.error);
   $("#status-caption").textContent = run.active
     ? "Checking your latest sources."
     : run.error
       ? `The last run stopped: ${run.error}`
-      : hasSnapshot
-        ? `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`
-        : "Nothing has been collected yet. Run the first check when you are ready.";
+      : !hasSnapshot
+        ? "Reading your local state…"
+        : `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`;
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
-      : hasSnapshot
-        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`
-        : "Waiting for the first run";
-  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
+      : !hasSnapshot
+        ? "Reading local state…"
+        : `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`;
+  $("#activity-status").textContent = run.active ? "updating" : !hasSnapshot ? "loading" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
   const button = $("#run-button");
-  button.disabled = run.active;
+  button.disabled = run.active || !hasSnapshot;
   button.classList.toggle("is-loading", run.active);
   button.innerHTML = run.active
     ? '<span class="run-icon">◌</span><span>Run in progress</span>'
+    : !hasSnapshot
+      ? '<span class="run-icon">◌</span><span>Loading state</span>'
     : `<span class="run-icon">↻</span><span>${run.error ? "Retry run" : "Run now"}</span>`;
 };
 
 const renderPipeline = () => {
   const run = effectiveRun();
+  if (state.data === null && !run.active) {
+    $("#pipeline").innerHTML = '<div class="loading-state" role="status">Reading local state…</div>';
+    return;
+  }
   const activeIndex = stages.indexOf(run.stage);
   const livePipeline = state.liveRunActive && Boolean(state.liveRunId);
   const stageLabels = { collect: "Collect", normalize: "Clean", jev: "Decide", policy: "Safety", actions: "Actions", briefing: "Summary" };

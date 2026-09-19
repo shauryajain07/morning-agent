@@ -24,6 +24,9 @@ import type {
   FileDownloadDecision,
   FileType,
   ImportantEmailDecision,
+  MorningRunRecord,
+  MorningRunStage,
+  MorningRunStatus,
   NewsWorthReadingDecision,
   RequiresActionDecision,
   ReviewRecord,
@@ -109,6 +112,19 @@ type ReviewRow = {
   updated_at: string;
 };
 
+type RunRow = {
+  run_id: string;
+  status: string;
+  stage: string | null;
+  started_at: string;
+  last_event_at: string;
+  completed_at: string | null;
+  item_count: number | null;
+  decision_count: number | null;
+  action_count: number | null;
+  error: string | null;
+};
+
 const urgencies = ["today", "soon", "later", "none"] as const;
 const decisionNames = [
   "requiresAction",
@@ -131,6 +147,8 @@ const actionStatuses = [
   "skipped",
 ] as const;
 const reviewStatuses = ["approved", "dismissed"] as const;
+const runStatuses = ["running", "completed", "failed"] as const;
+const runStages = ["collect", "normalize", "jev", "policy", "actions", "briefing"] as const;
 
 function isOneOf<Value extends string>(
   values: readonly Value[],
@@ -217,6 +235,14 @@ function isActionStatus(value: unknown): value is ActionStatus {
 
 function isReviewStatus(value: unknown): value is ReviewStatus {
   return isOneOf(reviewStatuses, value);
+}
+
+function isRunStatus(value: unknown): value is MorningRunStatus {
+  return isOneOf(runStatuses, value);
+}
+
+function isRunStage(value: unknown): value is MorningRunStage {
+  return isOneOf(runStages, value);
 }
 
 function validateDecisionOutput(
@@ -434,6 +460,29 @@ function validateReview(record: ReviewRecord): void {
   assertValidDate(record.updatedAt, "review.updatedAt");
 }
 
+function validateRun(record: MorningRunRecord): void {
+  assertNonEmptyText(record.runId, "run.runId");
+  if (!isRunStatus(record.status)) {
+    throw new TypeError("run.status is not a supported run status");
+  }
+  if (record.stage !== undefined && !isRunStage(record.stage)) {
+    throw new TypeError("run.stage is not a supported run stage");
+  }
+  assertValidDate(record.startedAt, "run.startedAt");
+  assertValidDate(record.lastEventAt, "run.lastEventAt");
+  if (record.completedAt !== undefined) assertValidDate(record.completedAt, "run.completedAt");
+  for (const [name, value] of [
+    ["itemCount", record.itemCount],
+    ["decisionCount", record.decisionCount],
+    ["actionCount", record.actionCount],
+  ] as const) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
+      throw new TypeError(`run.${name} must be a non-negative integer`);
+    }
+  }
+  if (record.error !== undefined) assertNonEmptyText(record.error, "run.error");
+}
+
 function parseSeenItemFingerprint(row: SeenItemFingerprintRow): SeenItemFingerprintRecord {
   return {
     fingerprint: row.fingerprint,
@@ -526,6 +575,35 @@ function parseReview(row: ReviewRow): ReviewRecord {
   };
 }
 
+function parseRun(row: RunRow): MorningRunRecord {
+  if (!isRunStatus(row.status)) {
+    throw new Error(`Stored run has an unsupported status: ${row.status}`);
+  }
+  if (row.stage !== null && !isRunStage(row.stage)) {
+    throw new Error(`Stored run has an unsupported stage: ${row.stage}`);
+  }
+  const parseCount = (value: number | null, fieldName: string): number | undefined => {
+    if (value === null) return undefined;
+    if (!Number.isInteger(value) || value < 0) throw new Error(`Stored run ${fieldName} is invalid`);
+    return value;
+  };
+  const itemCount = parseCount(row.item_count, "itemCount");
+  const decisionCount = parseCount(row.decision_count, "decisionCount");
+  const actionCount = parseCount(row.action_count, "actionCount");
+  return {
+    runId: row.run_id,
+    status: row.status,
+    ...(row.stage === null ? {} : { stage: row.stage }),
+    startedAt: deserializeDate(row.started_at, "run start timestamp"),
+    lastEventAt: deserializeDate(row.last_event_at, "run event timestamp"),
+    ...(row.completed_at === null ? {} : { completedAt: deserializeDate(row.completed_at, "run completion timestamp") }),
+    ...(itemCount === undefined ? {} : { itemCount }),
+    ...(decisionCount === undefined ? {} : { decisionCount }),
+    ...(actionCount === undefined ? {} : { actionCount }),
+    ...(row.error === null ? {} : { error: row.error }),
+  };
+}
+
 function ensureParentDirectory(dbPath: string): void {
   if (dbPath === ":memory:") {
     return;
@@ -554,6 +632,123 @@ export class MorningAgentStore {
     if (this.database.open) {
       this.database.close();
     }
+  }
+
+  public recordRun(record: MorningRunRecord): void {
+    validateRun(record);
+    this.database
+      .prepare<
+        {
+          runId: string;
+          status: MorningRunStatus;
+          stage: MorningRunStage | null;
+          startedAt: string;
+          lastEventAt: string;
+          completedAt: string | null;
+          itemCount: number | null;
+          decisionCount: number | null;
+          actionCount: number | null;
+          error: string | null;
+        },
+        unknown
+      >(
+        `
+          INSERT INTO run_records (
+            run_id,
+            status,
+            stage,
+            started_at,
+            last_event_at,
+            completed_at,
+            item_count,
+            decision_count,
+            action_count,
+            error
+          )
+          VALUES (
+            @runId,
+            @status,
+            @stage,
+            @startedAt,
+            @lastEventAt,
+            @completedAt,
+            @itemCount,
+            @decisionCount,
+            @actionCount,
+            @error
+          )
+          ON CONFLICT(run_id) DO UPDATE SET
+            status = excluded.status,
+            stage = excluded.stage,
+            started_at = excluded.started_at,
+            last_event_at = excluded.last_event_at,
+            completed_at = excluded.completed_at,
+            item_count = excluded.item_count,
+            decision_count = excluded.decision_count,
+            action_count = excluded.action_count,
+            error = excluded.error
+        `,
+      )
+      .run({
+        runId: record.runId,
+        status: record.status,
+        stage: record.stage ?? null,
+        startedAt: serializeDate(record.startedAt),
+        lastEventAt: serializeDate(record.lastEventAt),
+        completedAt: record.completedAt === undefined ? null : serializeDate(record.completedAt),
+        itemCount: record.itemCount ?? null,
+        decisionCount: record.decisionCount ?? null,
+        actionCount: record.actionCount ?? null,
+        error: record.error ?? null,
+      });
+  }
+
+  public getRun(runId: string): MorningRunRecord | undefined {
+    assertNonEmptyText(runId, "runId");
+    const row = this.database
+      .prepare<{ runId: string }, RunRow>(
+        `
+          SELECT
+            run_id,
+            status,
+            stage,
+            started_at,
+            last_event_at,
+            completed_at,
+            item_count,
+            decision_count,
+            action_count,
+            error
+          FROM run_records
+          WHERE run_id = @runId
+        `,
+      )
+      .get({ runId });
+    return row === undefined ? undefined : parseRun(row);
+  }
+
+  public getLatestRun(): MorningRunRecord | undefined {
+    const row = this.database
+      .prepare<[], RunRow>(
+        `
+          SELECT
+            run_id,
+            status,
+            stage,
+            started_at,
+            last_event_at,
+            completed_at,
+            item_count,
+            decision_count,
+            action_count,
+            error
+          FROM run_records
+          ORDER BY started_at DESC, run_id DESC
+          LIMIT 1
+        `,
+      )
+      .get();
+    return row === undefined ? undefined : parseRun(row);
   }
 
   public recordSeenItemFingerprint(

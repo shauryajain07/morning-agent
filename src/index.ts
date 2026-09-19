@@ -25,6 +25,7 @@ import type {
   AgentItem,
   DecisionRecord,
   MorningRunEvent,
+  MorningRunRecord,
   MorningRunStage,
   RunOptions,
 } from "./types/index.js";
@@ -198,11 +199,37 @@ const persistDecisions = (store: MorningAgentStore, decisions: DecisionRecord[])
 export const runMorning = async (options: RunOptions): Promise<string> => {
   const now = new Date();
   const runId = randomUUID();
-  const emit = (event: MorningRunEvent): void => emitRunEvent(options, event);
-  emit({ type: "run_started", runId, at: now.toISOString() });
   const store = createStore({
     dbPath: options.persist === true || !options.dryRun ? defaultSettings.databasePath : ":memory:",
   });
+  let runRecord: MorningRunRecord = {
+    runId,
+    status: "running",
+    startedAt: now,
+    lastEventAt: now,
+  };
+  const emit = (event: MorningRunEvent): void => {
+    const eventAt = new Date(event.at);
+    runRecord = { ...runRecord, lastEventAt: eventAt };
+    if (event.type === "stage") {
+      runRecord = { ...runRecord, stage: event.stage };
+    } else if (event.type === "run_completed") {
+      runRecord = {
+        ...runRecord,
+        status: "completed",
+        stage: "briefing",
+        completedAt: eventAt,
+        itemCount: event.itemCount,
+        decisionCount: event.decisionCount,
+        actionCount: event.actionCount,
+      };
+    } else if (event.type === "run_failed") {
+      runRecord = { ...runRecord, status: "failed", error: event.error };
+    }
+    store.recordRun(runRecord);
+    emitRunEvent(options, event);
+  };
+  emit({ type: "run_started", runId, at: now.toISOString() });
   try {
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "started", label: stageLabels.collect });
     logStage(options.verbose, "COLLECT");

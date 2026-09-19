@@ -127,7 +127,33 @@ type DashboardState = {
 };
 
 const sseClients = new Set<ServerResponse>();
-let runState: DashboardRunState = { active: false };
+
+const loadPersistedRunState = (): DashboardRunState => {
+  const store = createStore({ dbPath: defaultSettings.databasePath });
+  try {
+    const latest = store.getLatestRun();
+    if (latest === undefined) return { active: false };
+    const interrupted = latest.status === "running";
+    return {
+      active: false,
+      runId: latest.runId,
+      ...(latest.stage === undefined ? {} : { stage: latest.stage }),
+      startedAt: latest.startedAt.toISOString(),
+      lastEventAt: latest.lastEventAt.toISOString(),
+      ...(latest.completedAt === undefined ? {} : { completedAt: latest.completedAt.toISOString() }),
+      ...(latest.itemCount === undefined ? {} : { itemCount: latest.itemCount }),
+      ...(latest.decisionCount === undefined ? {} : { decisionCount: latest.decisionCount }),
+      ...(latest.actionCount === undefined ? {} : { actionCount: latest.actionCount }),
+      ...(latest.error === undefined && !interrupted
+        ? {}
+        : { error: latest.error ?? "The previous run was interrupted." }),
+    };
+  } finally {
+    store.close();
+  }
+};
+
+let runState: DashboardRunState = loadPersistedRunState();
 let activeRun: Promise<void> | undefined;
 
 const nowIso = (): string => new Date().toISOString();

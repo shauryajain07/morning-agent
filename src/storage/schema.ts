@@ -73,6 +73,22 @@ CREATE TABLE IF NOT EXISTS review_records (
 
 CREATE INDEX IF NOT EXISTS review_records_updated_idx
   ON review_records (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS run_records (
+  run_id TEXT PRIMARY KEY NOT NULL,
+  status TEXT NOT NULL,
+  stage TEXT,
+  started_at TEXT NOT NULL,
+  last_event_at TEXT NOT NULL,
+  completed_at TEXT,
+  item_count INTEGER,
+  decision_count INTEGER,
+  action_count INTEGER,
+  error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS run_records_started_idx
+  ON run_records (started_at DESC, run_id DESC);
 `;
 
 export function initializeSchema(database: Database.Database): void {

@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { createStore } from "../src/storage/db.js";
@@ -61,5 +65,46 @@ describe("SQLite state", () => {
       confidence: 0.91,
     });
     store.close();
+  });
+
+  it("keeps the latest run state across store reopen", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "morning-agent-run-"));
+    const dbPath = join(directory, "state.sqlite");
+    let store = createStore(dbPath);
+    const startedAt = new Date("2026-09-19T08:00:00.000Z");
+    const completedAt = new Date("2026-09-19T08:01:00.000Z");
+
+    store.recordRun({
+      runId: "run-1",
+      status: "running",
+      stage: "collect",
+      startedAt,
+      lastEventAt: startedAt,
+    });
+    store.recordRun({
+      runId: "run-1",
+      status: "completed",
+      stage: "briefing",
+      startedAt,
+      lastEventAt: completedAt,
+      completedAt,
+      itemCount: 12,
+      decisionCount: 8,
+      actionCount: 1,
+    });
+
+    store.close();
+    store = createStore(dbPath);
+    expect(store.getLatestRun()).toMatchObject({
+      runId: "run-1",
+      status: "completed",
+      stage: "briefing",
+      itemCount: 12,
+      decisionCount: 8,
+      actionCount: 1,
+      completedAt,
+    });
+    store.close();
+    await rm(directory, { recursive: true, force: true });
   });
 });

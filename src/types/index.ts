@@ -159,6 +159,21 @@ export type MorningRunStage =
   | "actions"
   | "briefing";
 
+export type MorningRunStatus = "running" | "completed" | "failed";
+
+export type MorningRunRecord = {
+  runId: string;
+  status: MorningRunStatus;
+  stage?: MorningRunStage;
+  startedAt: Date;
+  lastEventAt: Date;
+  completedAt?: Date;
+  itemCount?: number;
+  decisionCount?: number;
+  actionCount?: number;
+  error?: string;
+};
+
 export type MorningRunEvent =
   | { type: "run_started"; runId: string; at: string }
   | {

@@ -53,7 +53,7 @@ The browser layer is deterministic: it navigates only to the configured Moodle o
 
 ## Local dashboard
 
-Run `npm run dashboard` and open `http://127.0.0.1:4782`. The dashboard is local-only: it reads the same SQLite state, streams run stages over a live connection, shows the inbox/work/coursework mix, and gives you a review queue for Jev decisions below the confidence threshold. Dashboard runs persist collected state but run in dry-run mode; accepting or dismissing a low-confidence item records your review without sending mail, submitting Moodle work, or making an external mutation.
+Run `npm run dashboard` and open `http://127.0.0.1:4782`. The dashboard is local-only: it reads the same SQLite state, streams run stages over a live connection, picks up runs launched separately with `npm run morning`, shows the inbox/work/coursework mix, and gives you a review queue for Jev decisions below the confidence threshold. Dashboard runs persist collected state but run in dry-run mode; accepting or dismissing a low-confidence item records your review without sending mail, submitting Moodle work, or making an external mutation.
 
 ## Outlook collection
 

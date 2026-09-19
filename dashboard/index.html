@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="Morning Agent local command deck" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Morning Agent — Command Deck</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Morning Agent navigation">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div>
+            <div class="brand-name">MORNING</div>
+            <div class="brand-sub">AGENT <span>LOCAL</span></div>
+          </div>
+        </div>
+
+        <div class="sidebar-label">Workspace</div>
+        <nav class="main-nav">
+          <button class="nav-item is-active" data-view="control" type="button">
+            <span class="nav-icon">⌁</span><span>Control room</span><span class="nav-hot">⌘1</span>
+          </button>
+          <button class="nav-item" data-view="everything" type="button">
+            <span class="nav-icon">◈</span><span>Everything</span><span class="nav-hot">⌘2</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-label sidebar-label-spaced">Sources</div>
+        <div class="source-stack">
+          <div class="source-line"><span class="source-glyph email">@</span><span>Gmail + Outlook</span><b id="side-email-count">0</b></div>
+          <div class="source-line"><span class="source-glyph moodle">M</span><span>Moodle · AB</span><b id="side-moodle-count">0</b></div>
+          <div class="source-line"><span class="source-glyph work">⌘</span><span>Work signals</span><b id="side-work-count">0</b></div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+        <div class="privacy-card">
+          <div class="privacy-orb"><span></span></div>
+          <div><strong>Private by default</strong><p>Data stays on this Mac.</p></div>
+        </div>
+        <div class="sidebar-footer"><span class="live-dot"></span><span>Jev decision layer online</span></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="crumbs"><span class="crumb-muted">MORNING AGENT</span><span class="crumb-slash">/</span><span id="crumb-view">CONTROL ROOM</span></div>
+          <div class="topbar-actions">
+            <div class="connection-state"><span class="live-dot"></span><span id="connection-label">LIVE LINK</span></div>
+            <button class="run-button" id="run-button" type="button"><span class="run-icon">↻</span><span>Run pulse</span></button>
+          </div>
+        </header>
+
+        <section class="page-view" id="control-view" aria-labelledby="control-title">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">LIVE OPERATIONS <span class="eyebrow-rule"></span><span id="pulse-label">STANDING BY</span></div>
+              <h1 id="control-title">Good morning, <em>Shaurya.</em></h1>
+              <p class="lede" id="status-caption">Your sources are quiet. Run a pulse to bring the whole day into focus.</p>
+            </div>
+            <div class="date-block"><span id="current-day">—</span><strong id="current-time">—</strong></div>
+          </div>
+
+          <div class="metric-grid" aria-label="Morning Agent metrics">
+            <article class="metric-card accent-cyan"><div class="metric-head"><span>ALL SIGNALS</span><span class="metric-spark">↗</span></div><strong id="metric-total">0</strong><p>items in your orbit</p></article>
+            <article class="metric-card accent-lime"><div class="metric-head"><span>INBOX</span><span class="metric-spark">@</span></div><strong id="metric-email">0</strong><p><span id="metric-unread">0</span> unread / email signals</p></article>
+            <article class="metric-card accent-violet"><div class="metric-head"><span>ACADEMIA</span><span class="metric-spark">M</span></div><strong id="metric-moodle">0</strong><p>Moodle AB + course files</p></article>
+            <article class="metric-card accent-coral"><div class="metric-head"><span>HUMAN QUEUE</span><span class="metric-spark">!</span></div><strong id="metric-review">0</strong><p>low-confidence calls to review</p></article>
+          </div>
+
+          <div class="dashboard-grid dashboard-grid-top">
+            <article class="panel pipeline-panel">
+              <div class="panel-header"><div><span class="panel-kicker">PIPELINE</span><h2>Watch it think.</h2></div><span class="panel-status" id="pipeline-status">IDLE</span></div>
+              <div class="pipeline" id="pipeline" aria-label="Morning Agent pipeline"></div>
+              <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Waiting for the next pulse</span></div>
+            </article>
+
+            <article class="panel review-panel">
+              <div class="panel-header"><div><span class="panel-kicker warm">REVIEW QUEUE</span><h2>Human in the loop.</h2></div><span class="queue-count" id="queue-count">0</span></div>
+              <div class="review-list" id="review-list"></div>
+            </article>
+          </div>
+
+          <div class="dashboard-grid dashboard-grid-bottom">
+            <article class="panel activity-panel">
+              <div class="panel-header"><div><span class="panel-kicker">ACTIVITY STREAM</span><h2>Everything happening now.</h2></div><span class="tiny-live"><span class="live-dot"></span> streaming</span></div>
+              <div class="activity-list" id="activity-list" aria-live="polite"></div>
+            </article>
+            <article class="panel next-panel">
+              <div class="panel-header"><div><span class="panel-kicker">NEXT UP</span><h2>Deadlines in your lane.</h2></div><button class="text-button" data-view="everything" type="button">View all ↗</button></div>
+              <div class="deadline-list" id="deadline-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="page-view is-hidden" id="everything-view" aria-labelledby="everything-title">
+          <div class="page-heading page-heading-tight">
+            <div>
+              <div class="eyebrow">THE WHOLE PICTURE <span class="eyebrow-rule"></span><span id="everything-count">0 SIGNALS</span></div>
+              <h1 id="everything-title">Your day, <em>unfolded.</em></h1>
+              <p class="lede">One local view across inbox, coursework, work, calendar, and files.</p>
+            </div>
+            <div class="view-toggle" role="tablist" aria-label="Everything filters">
+              <button class="filter-button is-active" data-filter="all" type="button">All</button>
+              <button class="filter-button" data-filter="email" type="button">Inbox</button>
+              <button class="filter-button" data-filter="work" type="button">Work</button>
+              <button class="filter-button" data-filter="moodle" type="button">Moodle</button>
+            </div>
+          </div>
+
+          <div class="overview-grid">
+            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">SIGNAL MIX</span><h2>Where your attention lives.</h2></div></div><div class="source-visual"><div class="source-donut" id="source-donut"><div><strong id="donut-total">0</strong><span>signals</span></div></div><div class="source-bars" id="source-bars"></div></div></article>
+            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">FOCUS LOAD</span><h2>What wants you next.</h2></div><span class="focus-score" id="focus-score">0%</span></div><div class="focus-meter"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"></div></article>
+          </div>
+
+          <article class="panel stream-panel">
+            <div class="panel-header stream-header"><div><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" autocomplete="off" /></label></div>
+            <div class="stream-table-head"><span>Signal</span><span>Source</span><span>When</span><span>State</span></div>
+            <div class="stream-table" id="stream-table"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="detail-dialog" id="detail-dialog">
+      <div class="dialog-inner" id="detail-content"></div>
+    </dialog>
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

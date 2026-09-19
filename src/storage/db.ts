@@ -24,6 +24,9 @@ import type {
   FileType,
   ImportantEmailDecision,
   RequiresActionDecision,
+  ReviewRecord,
+  ReviewStatus,
+  StoredAgentItem,
   Urgency,
 } from "../types/index.js";
 
@@ -84,6 +87,26 @@ type ActionRow = {
   created_at: string;
 };
 
+type ItemRow = {
+  id: string;
+  source: string;
+  title: string;
+  content: string | null;
+  url: string | null;
+  created_at: string | null;
+  deadline_at: string | null;
+  metadata_json: string;
+  observed_at: string;
+};
+
+type ReviewRow = {
+  item_id: string;
+  decision: string;
+  status: string;
+  note: string | null;
+  updated_at: string;
+};
+
 const urgencies = ["today", "soon", "later", "none"] as const;
 const decisionNames = [
   "requiresAction",
@@ -104,6 +127,7 @@ const actionStatuses = [
   "manual_review",
   "skipped",
 ] as const;
+const reviewStatuses = ["approved", "dismissed"] as const;
 
 function isOneOf<Value extends string>(
   values: readonly Value[],
@@ -186,6 +210,10 @@ function isActionKind(value: unknown): value is ActionKind {
 
 function isActionStatus(value: unknown): value is ActionStatus {
   return isOneOf(actionStatuses, value);
+}
+
+function isReviewStatus(value: unknown): value is ReviewStatus {
+  return isOneOf(reviewStatuses, value);
 }
 
 function validateDecisionOutput(
@@ -358,6 +386,33 @@ function validateAction(record: ActionRecord): void {
   assertValidDate(record.createdAt, "action.createdAt");
 }
 
+function validateItem(item: AgentItem): void {
+  assertNonEmptyText(item.id, "item.id");
+  assertNonEmptyText(item.title, "item.title");
+  if (!isAgentSource(item.source)) {
+    throw new TypeError("item.source is not a supported agent source");
+  }
+  if (item.content !== undefined) assertNonEmptyText(item.content, "item.content");
+  if (item.url !== undefined) assertNonEmptyText(item.url, "item.url");
+  if (item.createdAt !== undefined) assertValidDate(item.createdAt, "item.createdAt");
+  if (item.deadline !== undefined) assertValidDate(item.deadline, "item.deadline");
+  if (!isRecord(item.metadata)) {
+    throw new TypeError("item.metadata must be a record");
+  }
+}
+
+function validateReview(record: ReviewRecord): void {
+  assertNonEmptyText(record.itemId, "review.itemId");
+  if (!isDecisionName(record.decision)) {
+    throw new TypeError("review.decision is not a supported decision name");
+  }
+  if (!isReviewStatus(record.status)) {
+    throw new TypeError("review.status is not a supported review status");
+  }
+  if (record.note !== undefined) assertNonEmptyText(record.note, "review.note");
+  assertValidDate(record.updatedAt, "review.updatedAt");
+}
+
 function parseSeenItemFingerprint(row: SeenItemFingerprintRow): SeenItemFingerprintRecord {
   return {
     fingerprint: row.fingerprint,
@@ -407,6 +462,46 @@ function parseAction(row: ActionRow): ActionRecord {
     status: row.status,
     description: row.description,
     createdAt: deserializeDate(row.created_at, "action timestamp"),
+  };
+}
+
+function parseStoredItem(row: ItemRow): StoredAgentItem {
+  if (!isAgentSource(row.source)) {
+    throw new Error(`Stored item has an unsupported source: ${row.source}`);
+  }
+  const metadata = parseJson(row.metadata_json, "item metadata");
+  if (!isRecord(metadata)) {
+    throw new Error("Stored item metadata must be a JSON object");
+  }
+  const item: AgentItem = {
+    id: row.id,
+    source: row.source,
+    title: row.title,
+    metadata,
+    ...(row.content === null ? {} : { content: row.content }),
+    ...(row.url === null ? {} : { url: row.url }),
+    ...(row.created_at === null ? {} : { createdAt: deserializeDate(row.created_at, "item created timestamp") }),
+    ...(row.deadline_at === null ? {} : { deadline: deserializeDate(row.deadline_at, "item deadline timestamp") }),
+  };
+  return {
+    ...item,
+    observedAt: deserializeDate(row.observed_at, "item observed timestamp"),
+  };
+}
+
+function parseReview(row: ReviewRow): ReviewRecord {
+  if (!isDecisionName(row.decision)) {
+    throw new Error(`Stored review has an unsupported decision: ${row.decision}`);
+  }
+  if (!isReviewStatus(row.status)) {
+    throw new Error(`Stored review has an unsupported status: ${row.status}`);
+  }
+  return {
+    itemId: row.item_id,
+    decision: row.decision,
+    status: row.status,
+    ...(row.note === null ? {} : { note: row.note }),
+    updatedAt: deserializeDate(row.updated_at, "review timestamp"),
   };
 }
 
@@ -818,6 +913,139 @@ export class MorningAgentStore {
       )
       .all();
     return rows.map(parseAction);
+  }
+
+  public recordItem(item: AgentItem, observedAt: Date = new Date()): void {
+    validateItem(item);
+    assertValidDate(observedAt, "item.observedAt");
+    this.database
+      .prepare<
+        {
+          id: string;
+          source: AgentSource;
+          title: string;
+          content: string | null;
+          url: string | null;
+          createdAt: string | null;
+          deadlineAt: string | null;
+          metadataJson: string;
+          observedAt: string;
+        },
+        unknown
+      >(
+        `
+          INSERT INTO item_records (
+            id, source, title, content, url, created_at, deadline_at, metadata_json, observed_at
+          )
+          VALUES (
+            @id, @source, @title, @content, @url, @createdAt, @deadlineAt, @metadataJson, @observedAt
+          )
+          ON CONFLICT(id) DO UPDATE SET
+            source = excluded.source,
+            title = excluded.title,
+            content = excluded.content,
+            url = excluded.url,
+            created_at = excluded.created_at,
+            deadline_at = excluded.deadline_at,
+            metadata_json = excluded.metadata_json,
+            observed_at = excluded.observed_at
+        `,
+      )
+      .run({
+        id: item.id,
+        source: item.source,
+        title: item.title,
+        content: item.content ?? null,
+        url: item.url ?? null,
+        createdAt: item.createdAt === undefined ? null : serializeDate(item.createdAt),
+        deadlineAt: item.deadline === undefined ? null : serializeDate(item.deadline),
+        metadataJson: serializeJson(item.metadata, "item metadata"),
+        observedAt: serializeDate(observedAt),
+      });
+  }
+
+  public getItem(id: string): StoredAgentItem | undefined {
+    assertNonEmptyText(id, "id");
+    const row = this.database
+      .prepare<{ id: string }, ItemRow>(
+        `
+          SELECT id, source, title, content, url, created_at, deadline_at, metadata_json, observed_at
+          FROM item_records
+          WHERE id = @id
+        `,
+      )
+      .get({ id });
+    return row === undefined ? undefined : parseStoredItem(row);
+  }
+
+  public getItems(limit = 500): StoredAgentItem[] {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 5_000) {
+      throw new TypeError("limit must be an integer from 1 to 5000");
+    }
+    const rows = this.database
+      .prepare<{ limit: number }, ItemRow>(
+        `
+          SELECT id, source, title, content, url, created_at, deadline_at, metadata_json, observed_at
+          FROM item_records
+          ORDER BY observed_at DESC, id ASC
+          LIMIT @limit
+        `,
+      )
+      .all({ limit });
+    return rows.map(parseStoredItem);
+  }
+
+  public recordReview(record: ReviewRecord): void {
+    validateReview(record);
+    this.database
+      .prepare<
+        { itemId: string; decision: DecisionName; status: ReviewStatus; note: string | null; updatedAt: string },
+        unknown
+      >(
+        `
+          INSERT INTO review_records (item_id, decision, status, note, updated_at)
+          VALUES (@itemId, @decision, @status, @note, @updatedAt)
+          ON CONFLICT(item_id, decision) DO UPDATE SET
+            status = excluded.status,
+            note = excluded.note,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run({
+        itemId: record.itemId,
+        decision: record.decision,
+        status: record.status,
+        note: record.note ?? null,
+        updatedAt: serializeDate(record.updatedAt),
+      });
+  }
+
+  public getReview(itemId: string, decision: DecisionName): ReviewRecord | undefined {
+    assertNonEmptyText(itemId, "itemId");
+    if (!isDecisionName(decision)) throw new TypeError("decision is not a supported decision name");
+    const row = this.database
+      .prepare<{ itemId: string; decision: DecisionName }, ReviewRow>(
+        `
+          SELECT item_id, decision, status, note, updated_at
+          FROM review_records
+          WHERE item_id = @itemId AND decision = @decision
+        `,
+      )
+      .get({ itemId, decision });
+    return row === undefined ? undefined : parseReview(row);
+  }
+
+  public getReviews(): ReviewRecord[] {
+    const rows = this.database
+      .prepare<[], ReviewRow>(
+        `
+          SELECT item_id, decision, status, note, updated_at
+          FROM review_records
+          ORDER BY updated_at DESC, item_id ASC, decision ASC
+        `,
+      )
+      .all();
+    return rows.map(parseReview);
   }
 }
 

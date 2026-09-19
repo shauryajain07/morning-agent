@@ -51,6 +51,10 @@ Moodle accessibility skip links are ignored. If the dashboard exposes both MATH1
 
 The browser layer is deterministic: it navigates only to the configured Moodle origin and extracts a compact page snapshot. Jev receives normalized Moodle items afterward for typed decisions; it does not choose arbitrary browser clicks or generate navigation text. Moodle mutations and coursework submission are outside the action allowlist.
 
+## Local dashboard
+
+Run `npm run dashboard` and open `http://127.0.0.1:4782`. The dashboard is local-only: it reads the same SQLite state, streams pulse stages over a live connection, shows the inbox/work/coursework mix, and gives you a review queue for Jev decisions below the confidence threshold. Dashboard pulses persist collected state but run in dry-run mode; accepting or dismissing a low-confidence signal records your review without sending mail, submitting Moodle work, or making an external mutation.
+
 ## Outlook collection
 
 Outlook email is collected through the read-only Outlook Web UI, alongside the Moodle browser adapter. It does not use Microsoft Graph or automate credentials. Enable it in `.env`:

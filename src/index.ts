@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -21,6 +22,8 @@ import type {
   ActionRecord,
   AgentItem,
   DecisionRecord,
+  MorningRunEvent,
+  MorningRunStage,
   RunOptions,
 } from "./types/index.js";
 import {
@@ -51,6 +54,19 @@ const parseOptions = (argv: string[]): RunOptions => {
 
 const logStage = (verbose: boolean, label: string): void => {
   if (verbose) console.log(label);
+};
+
+const stageLabels: Record<MorningRunStage, string> = {
+  collect: "COLLECT",
+  normalize: "NORMALIZE",
+  jev: "JEV DECISIONS",
+  policy: "POLICY ENGINE",
+  actions: "ACTIONS",
+  briefing: "BRIEFING",
+};
+
+const emitRunEvent = (options: RunOptions, event: MorningRunEvent): void => {
+  options.onEvent?.(event);
 };
 
 const isMissingPathError = (error: unknown): boolean =>
@@ -162,23 +178,37 @@ const persistDecisions = (store: MorningAgentStore, decisions: DecisionRecord[])
 
 export const runMorning = async (options: RunOptions): Promise<string> => {
   const now = new Date();
-  const store = createStore({ dbPath: options.dryRun ? ":memory:" : defaultSettings.databasePath });
+  const runId = randomUUID();
+  const emit = (event: MorningRunEvent): void => emitRunEvent(options, event);
+  emit({ type: "run_started", runId, at: now.toISOString() });
+  const store = createStore({
+    dbPath: options.persist === true || !options.dryRun ? defaultSettings.databasePath : ":memory:",
+  });
   try {
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "started", label: stageLabels.collect });
     logStage(options.verbose, "COLLECT");
     const collected = options.mock ? await collectMockItems() : await collectRealItems();
     logStage(options.verbose, `Collected ${collected.length} item(s)`);
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "completed", label: stageLabels.collect });
+    emit({ type: "items_collected", runId, at: new Date().toISOString(), count: collected.length });
 
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "normalize", status: "started", label: stageLabels.normalize });
     logStage(options.verbose, "↓\nNORMALIZE");
     const items = parseAgentItems(collected);
     const newItemIds = new Set<string>();
     for (const item of items) {
+      store.recordItem(item, now);
       if (store.recordSeenItemFingerprint(itemFingerprint(item), now)) newItemIds.add(item.id);
     }
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "normalize", status: "completed", label: stageLabels.normalize });
 
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "jev", status: "started", label: stageLabels.jev });
     logStage(options.verbose, "↓\nJEV DECISIONS");
     const decisionEngine = options.mock ? new MockDecisionEngine() : new JevDecisionEngine();
     const decisions = (await Promise.all(items.map((item) => decisionEngine.evaluateItem(item)))).flat();
     persistDecisions(store, decisions);
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "jev", status: "completed", label: stageLabels.jev });
+    emit({ type: "decisions_completed", runId, at: new Date().toISOString(), count: decisions.length });
 
     const newDeadlineIds = new Set<string>();
     for (const item of items) {
@@ -188,15 +218,38 @@ export const runMorning = async (options: RunOptions): Promise<string> => {
       }
     }
 
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "policy", status: "started", label: stageLabels.policy });
     logStage(options.verbose, "↓\nPOLICY ENGINE");
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "policy", status: "completed", label: stageLabels.policy });
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "actions", status: "started", label: stageLabels.actions });
     logStage(options.verbose, "↓\nACTIONS");
     const actions = await executeActions(items, decisions, options, newItemIds);
     for (const action of actions) store.recordAction(action);
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "actions", status: "completed", label: stageLabels.actions });
+    emit({ type: "actions_completed", runId, at: new Date().toISOString(), count: actions.length });
 
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "briefing", status: "started", label: stageLabels.briefing });
     logStage(options.verbose, "↓\nBRIEFING");
     const report = createMorningReport({ now, items, decisions, actions, newDeadlineIds, newItemIds });
+    emit({ type: "stage", runId, at: new Date().toISOString(), stage: "briefing", status: "completed", label: stageLabels.briefing });
+    emit({
+      type: "run_completed",
+      runId,
+      at: new Date().toISOString(),
+      itemCount: items.length,
+      decisionCount: decisions.length,
+      actionCount: actions.length,
+    });
     console.log(report.text);
     return report.text;
+  } catch (error: unknown) {
+    emit({
+      type: "run_failed",
+      runId,
+      at: new Date().toISOString(),
+      error: error instanceof Error ? error.message : "Morning Agent failed.",
+    });
+    throw error;
   } finally {
     store.close();
   }

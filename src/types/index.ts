@@ -19,6 +19,10 @@ export type AgentItem = {
   metadata: Record<string, unknown>;
 };
 
+export type StoredAgentItem = AgentItem & {
+  observedAt: Date;
+};
+
 export type Urgency = "today" | "soon" | "later" | "none";
 
 export type RequiresActionDecision = {
@@ -115,6 +119,47 @@ export type ActionRecord = {
   createdAt: Date;
 };
 
+export type ReviewStatus = "approved" | "dismissed";
+
+export type ReviewRecord = {
+  itemId: string;
+  decision: DecisionName;
+  status: ReviewStatus;
+  note?: string;
+  updatedAt: Date;
+};
+
+export type MorningRunStage =
+  | "collect"
+  | "normalize"
+  | "jev"
+  | "policy"
+  | "actions"
+  | "briefing";
+
+export type MorningRunEvent =
+  | { type: "run_started"; runId: string; at: string }
+  | {
+      type: "stage";
+      runId: string;
+      at: string;
+      stage: MorningRunStage;
+      status: "started" | "completed";
+      label: string;
+    }
+  | { type: "items_collected"; runId: string; at: string; count: number }
+  | { type: "decisions_completed"; runId: string; at: string; count: number }
+  | { type: "actions_completed"; runId: string; at: string; count: number }
+  | {
+      type: "run_completed";
+      runId: string;
+      at: string;
+      itemCount: number;
+      decisionCount: number;
+      actionCount: number;
+    }
+  | { type: "run_failed"; runId: string; at: string; error: string };
+
 export interface MoodleProvider {
   getAnnouncements(): Promise<AgentItem[]>;
   getAssignments(): Promise<AgentItem[]>;
@@ -125,4 +170,6 @@ export type RunOptions = {
   dryRun: boolean;
   mock: boolean;
   verbose: boolean;
+  persist?: boolean;
+  onEvent?: (event: MorningRunEvent) => void;
 };

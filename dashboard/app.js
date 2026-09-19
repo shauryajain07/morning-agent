@@ -1,4 +1,4 @@
-const validFilters = new Set(["all", "email", "work", "moodle", "news", "edstem", "files"]);
+const validFilters = new Set(["all", "deadlines", "email", "work", "moodle", "news", "edstem", "files"]);
 const persistedFilter = window.localStorage.getItem("morning-agent:filter");
 const persistedCourse = window.localStorage.getItem("morning-agent:course") ?? "";
 
@@ -355,6 +355,7 @@ const filteredItems = () => {
   return items.filter((item) => {
     const matchesFilter = state.filter === "all"
       || (state.filter === "work" && ["github", "calendar"].includes(item.source))
+      || (state.filter === "deadlines" && item.deadline !== undefined)
       || (state.filter === "moodle" && item.source === "moodle")
       || (state.filter === "email" && item.source === "email")
       || (state.filter === "news" && item.source === "news")

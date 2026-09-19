@@ -93,7 +93,7 @@
               <div class="activity-list" id="activity-list" aria-live="polite"></div>
             </article>
             <article class="panel next-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Upcoming</span><h2>Dates to keep in mind</h2></div><button class="text-button" data-view="everything" type="button">View all ↗</button></div>
+              <div class="panel-header"><div><span class="panel-kicker">Upcoming</span><h2>Dates to keep in mind</h2></div><button class="text-button" data-view="everything" data-filter="deadlines" type="button">View all deadlines ↗</button></div>
               <div class="deadline-list" id="deadline-list"></div>
             </article>
           </div>
@@ -108,6 +108,7 @@
             </div>
             <div class="view-toggle" role="group" aria-label="Everything filters">
               <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
+              <button class="filter-button" data-filter="deadlines" type="button" aria-pressed="false">Deadlines</button>
               <button class="filter-button" data-filter="email" type="button" aria-pressed="false">Inbox</button>
               <button class="filter-button" data-filter="work" type="button" aria-pressed="false">Work</button>
               <button class="filter-button" data-filter="moodle" type="button" aria-pressed="false">Moodle</button>

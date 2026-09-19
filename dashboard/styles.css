@@ -205,6 +205,7 @@ h1, h2, p { margin: 0; }
 h1 { margin-top: 10px; font-size: clamp(32px, 3.4vw, 43px); font-weight: 600; letter-spacing: -.045em; line-height: 1.03; }
 h1 em { color: var(--accent); font-style: normal; }
 .lede { max-width: 590px; margin-top: 11px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.lede.is-stale { color: var(--gold); }
 .date-block { display: grid; justify-items: end; gap: 4px; padding-bottom: 4px; color: var(--muted); font-size: 12px; text-align: right; }
 .date-block strong { color: var(--text); font-size: 17px; font-weight: 500; letter-spacing: -.02em; }
 

@@ -109,6 +109,12 @@ const latestObservedAt = () => {
   return latest;
 };
 
+const snapshotIsStale = () => {
+  if (!state.data?.metrics?.total) return false;
+  const timestamp = new Date(latestObservedAt()).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp >= 86_400_000;
+};
+
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
 
 const upcomingDeadlineIds = () => new Set((state.data?.deadlines ?? []).map((deadline) => deadline.id));
@@ -196,6 +202,7 @@ const hideDataBanner = () => {
 const renderUnavailable = () => {
   $("#pulse-label").textContent = "Unavailable";
   $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
+  $("#status-caption").classList.remove("is-stale");
   $("#pipeline-kicker").textContent = "Connection";
   $("#pipeline-title").textContent = "Collection unavailable";
   $("#pipeline-status").textContent = "Unavailable";
@@ -293,6 +300,7 @@ const renderMetrics = () => {
 const renderHeader = () => {
   const run = effectiveRun();
   const latestObservation = latestObservedAt();
+  const isStaleSnapshot = snapshotIsStale();
   const hasRunHistory = Boolean(run.completedAt);
   const hasSnapshot = Boolean(state.data?.metrics?.total);
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
@@ -301,19 +309,20 @@ const renderHeader = () => {
   $("#pipeline-title").textContent = run.active ? "Collecting now" : hasRunHistory ? "Last collection" : hasSnapshot ? "Collection status" : "First collection";
   $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", run.active);
+  $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !run.active && !run.error);
   $("#status-caption").textContent = run.active
     ? "Checking your latest sources."
     : run.error
       ? `The last run stopped: ${run.error}`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}.`
+        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : ""}.`
         : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : state.data?.metrics?.total
-        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} stored items · run again for fresh data`
+        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} stored items · ${isStaleSnapshot ? "refresh recommended" : "run again for fresh data"}`
         : "Waiting for the first run";
   $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "saved locally" : "offline";
   const button = $("#run-button");

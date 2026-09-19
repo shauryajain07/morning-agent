@@ -872,6 +872,7 @@ const runPulse = async (mock = false) => {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error ?? "Could not start run.");
     toast(mock ? "Demo run started." : "Run started.", "success");
+    fetchState().catch(() => {});
   } catch (error) {
     toast(errorMessage(error, "Could not start run."), "error");
     renderHeader();

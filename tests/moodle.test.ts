@@ -172,6 +172,28 @@ describe("Moodle browser adapter", () => {
     expect(result.assignments[0]?.content).toContain("Participation records");
   });
 
+  it("keeps assignment context readable after removing Moodle page chrome", () => {
+    const result = extractMoodleItems([
+      {
+        url: "https://moodle.example/course/view.php?id=10",
+        title: "ENGG1000",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/mod/assign/view.php?id=44",
+            text: "ASSIGNMENT 1",
+            context: "Dashboard My courses 63 Shaurya Dileep Jain JS Open course index ENGG1000_1B_2026 General Tutorial Participation Blocks Tutorial Participation Blocks Completion requirements Participation Requirements: Attendance taken in the tutorial session. Blocks Blocks Blocks Blocks FAQs for Teachers User guides for Teachers",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.assignments[0]?.content).not.toMatch(/Dashboard|My courses|Open course index|FAQs for Teachers/iu);
+    expect(result.assignments[0]?.content).toContain("General Tutorial Participation · Completion requirements");
+  });
+
   it("discovers bounded same-origin activity pages for nested files", () => {
     const snapshot: MoodlePageSnapshot = {
       url: "https://moodle.example/course/view.php?id=10",

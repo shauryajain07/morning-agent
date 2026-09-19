@@ -67,7 +67,11 @@ const stripMoodleNavigationChrome = (value: string): string => cleanText(
     .replace(/\bThere are no upcoming events\s+Go to calendar\.\.\./giu, " ")
     .replace(/\bSkip\s+ReadingList@HKUL(?:\s+ReadingList@HKUL)?\s+Reading list for\s+\S+\s+Close\s+Light Mode\s+\d+\s+JS\s+Open course index\s*/iu, " ")
     .replace(/\bSkip\s+ReadingList@HKUL\s+R\b/giu, " ")
-    .replace(/\bHome\s+Courses\s+\S*20\d{2}\S*\s+/iu, ""),
+    .replace(/\bDashboard\s+My courses\s+\d+\s+[\s\S]*?\bOpen course index\s*/iu, " ")
+    .replace(/\bJS\s+Open course index\s*/iu, " ")
+    .replace(/\bHome\s+Courses\s+\S*20\d{2}\S*\s+/iu, "")
+    .replace(/\bGeneral\s+(Tutorial|Lecture)\s+Participation\s+Blocks\s+\1\s+Participation\s+Blocks\s+Completion requirements\b/giu, "General $1 Participation · Completion requirements")
+    .replace(/\s+Blocks(?:\s+Blocks){2,}\s+FAQs for Teachers[\s\S]*$/iu, " "),
 );
 
 const isHttpUrl = (value: URL): boolean => value.protocol === "https:" || value.protocol === "http:";

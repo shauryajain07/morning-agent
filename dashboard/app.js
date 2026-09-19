@@ -51,7 +51,11 @@ const cleanDisplayText = (value) => String(value ?? "")
   .replace(/\bThere are no upcoming events\s+Go to calendar\.\.\./giu, " ")
   .replace(/\bSkip\s+ReadingList@HKUL(?:\s+ReadingList@HKUL)?\s+Reading list for\s+\S+\s+Close\s+Light Mode\s+\d+\s+JS\s+Open course index\s*/iu, " ")
   .replace(/\bSkip\s+ReadingList@HKUL\s+R\b/giu, " ")
+  .replace(/\bDashboard\s+My courses\s+\d+\s+[\s\S]*?\bOpen course index\s*/iu, " ")
+  .replace(/\bJS\s+Open course index\s*/iu, " ")
   .replace(/\bHome\s+Courses\s+\S*20\d{2}\S*\s+/iu, " ")
+  .replace(/\bGeneral\s+(Tutorial|Lecture)\s+Participation\s+Blocks\s+\1\s+Participation\s+Blocks\s+Completion requirements\b/giu, "General $1 Participation · Completion requirements")
+  .replace(/\s+Blocks(?:\s+Blocks){2,}\s+FAQs for Teachers[\s\S]*$/iu, " ")
   .replace(/\s+/gu, " ")
   .trim();
 
@@ -94,6 +98,8 @@ const latestObservedAt = () => {
 };
 
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
+
+const upcomingDeadlineIds = () => new Set((state.data?.deadlines ?? []).map((deadline) => deadline.id));
 
 const greeting = (hour) => hour < 12 ? "Good morning," : hour < 18 ? "Good afternoon," : "Good evening,";
 
@@ -260,7 +266,11 @@ const renderMetrics = () => {
   $("#side-news-count").textContent = metrics.news ?? 0;
   $("#side-edstem-count").textContent = metrics.edstem ?? 0;
   $("#side-downloads-count").textContent = metrics.downloads ?? 0;
-  $("#everything-count").textContent = `${metrics.total ?? 0} items`;
+  const latestObservation = latestObservedAt();
+  const hasActivityScope = state.filter !== "all" || state.course !== "" || state.query !== "";
+  const visibleCount = hasActivityScope ? filteredItems().length : metrics.total ?? 0;
+  const visibleLabel = `${visibleCount} item${visibleCount === 1 ? "" : "s"}${hasActivityScope ? " · filtered" : ""}`;
+  $("#everything-count").textContent = `${visibleLabel}${latestObservation === "" ? "" : ` · last observed ${relativeTime(latestObservation)}`}`;
   $("#donut-total").textContent = metrics.total ?? 0;
   const courses = new Set((state.data?.items ?? []).map(courseInfo).filter(Boolean).map((course) => course.key));
   $("#metric-course-count").textContent = `${courses.size} course${courses.size === 1 ? "" : "s"}`;
@@ -422,7 +432,18 @@ const renderDeadlines = () => {
 };
 
 const renderSourceVisual = () => {
-  const counts = state.data?.sources ?? {};
+  const scopedItems = filteredItems();
+  const counts = scopedItems.reduce((totals, item) => {
+    if (item.source === "email") totals.email += 1;
+    else if (item.source === "moodle") totals.moodle += 1;
+    else if (item.source === "github") totals.github += 1;
+    else if (item.source === "calendar") totals.calendar += 1;
+    else if (item.source === "work") totals.work += 1;
+    else if (item.source === "news") totals.news += 1;
+    else if (item.source === "edstem") totals.edstem += 1;
+    else if (item.source === "downloads") totals.downloads += 1;
+    return totals;
+  }, { email: 0, moodle: 0, github: 0, calendar: 0, work: 0, news: 0, edstem: 0, downloads: 0 });
   const sourceGroups = [
     { key: "email", label: source("email").label, count: counts.email ?? 0, color: "var(--lime)" },
     { key: "moodle", label: source("moodle").label, count: counts.moodle ?? 0, color: "var(--violet)" },
@@ -432,6 +453,8 @@ const renderSourceVisual = () => {
     { key: "downloads", label: source("downloads").label, count: counts.downloads ?? 0, color: "var(--coral)" },
   ];
   const total = sourceGroups.reduce((sum, group) => sum + group.count, 0);
+  $("#donut-total").textContent = total;
+  $("#source-scope").textContent = state.filter === "all" && state.course === "" && state.query === "" ? "all items" : "current view";
   let cursor = 0;
   const segments = sourceGroups.map((group) => {
     const count = group.count;
@@ -449,17 +472,21 @@ const renderSourceVisual = () => {
 };
 
 const renderFocus = () => {
-  const metrics = state.data?.metrics ?? {};
-  const total = metrics.total ?? 0;
-  const weighted = total === 0 ? 0 : Math.min(100, Math.round(((metrics.unread ?? 0) + (metrics.deadlines ?? 0) * 1.6 + (metrics.lowConfidence ?? 0) * 2) / Math.max(1, total) * 100));
+  const scopedItems = filteredItems();
+  const itemIds = new Set(scopedItems.map((item) => item.id));
+  const unread = scopedItems.filter((item) => item.metadata?.unread === true).length;
+  const deadlines = (state.data?.deadlines ?? []).filter((deadline) => itemIds.has(deadline.id)).length;
+  const humanReview = (state.data?.lowConfidence ?? []).filter((entry) => itemIds.has(entry.item.id)).length;
+  const total = scopedItems.length;
+  const weighted = total === 0 ? 0 : Math.min(100, Math.round((unread + deadlines * 1.6 + humanReview * 2) / Math.max(1, total) * 100));
   $("#focus-score").textContent = `${weighted}%`;
   $("#focus-meter").setAttribute("aria-valuenow", String(weighted));
   $("#focus-meter").setAttribute("aria-valuetext", `${weighted}% attention load`);
   $("#focus-meter-fill").style.width = `${weighted}%`;
   $("#focus-breakdown").innerHTML = [
-    ["Unread mail", metrics.unread ?? 0],
-    ["Deadlines, 7 days", metrics.deadlines ?? 0],
-    ["Human review", metrics.lowConfidence ?? 0],
+    ["Unread mail", unread],
+    ["Deadlines, 7 days", deadlines],
+    ["Human review", humanReview],
   ].map(([label, count]) => `<div class="focus-line"><span>${escapeHtml(label)}</span><strong>${count}</strong></div>`).join("");
 };
 
@@ -485,10 +512,11 @@ const renderCourseFilter = () => {
 const filteredItems = () => {
   const items = state.data?.items ?? [];
   const reviewItemIds = new Set((state.data?.lowConfidence ?? []).map((entry) => entry.item.id));
+  const deadlineIds = upcomingDeadlineIds();
   return items.filter((item) => {
     const matchesFilter = state.filter === "all"
       || (state.filter === "work" && ["github", "calendar"].includes(item.source))
-      || (state.filter === "deadlines" && item.deadline !== undefined)
+      || (state.filter === "deadlines" && deadlineIds.has(item.id))
       || (state.filter === "review" && reviewItemIds.has(item.id))
       || (state.filter === "moodle" && item.source === "moodle")
       || (state.filter === "courses" && ["moodle", "edstem"].includes(item.source))
@@ -525,6 +553,7 @@ const emptyStreamCopy = () => {
 
 const renderStream = () => {
   const items = filteredItems();
+  const deadlineIds = upcomingDeadlineIds();
   const pendingReviewsByItem = new Map();
   for (const entry of state.data?.lowConfidence ?? []) {
     const pending = pendingReviewsByItem.get(entry.item.id) ?? [];
@@ -550,7 +579,7 @@ const renderStream = () => {
     const weakest = pendingReviews.slice().sort((left, right) => confidence(left) - confidence(right))[0];
     const hot = weakest && confidence(weakest) < 75;
     const unread = item.metadata?.unread === true;
-    const isDeadline = item.deadline !== undefined;
+    const isDeadline = deadlineIds.has(item.id);
     const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
     const itemCourse = courseInfo(item);
     const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";

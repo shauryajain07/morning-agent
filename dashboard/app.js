@@ -605,13 +605,45 @@ const resourceMarkup = (item) => {
   return links.length === 0 ? "" : `<div class="detail-section resource-section"><h3>Lesson resources</h3><div class="resource-list">${links}</div></div>`;
 };
 
+const metadataLabel = (key) => ({
+  sender: "From",
+  senderEmail: "Email",
+  unread: "Unread",
+  receivedAt: "Received",
+  creationTime: "Created",
+  modifiedTime: "Modified",
+  courseId: "Course ID",
+  kind: "Type",
+}[key] ?? humanize(key));
+
+const metadataValue = (key, value) => {
+  if (key === "unread" && typeof value === "boolean") return value ? "Yes" : "No";
+  if ((key.endsWith("At") || key === "creationTime" || key === "modifiedTime") && typeof value === "string") {
+    const timestamp = new Date(value);
+    if (Number.isFinite(timestamp.getTime())) return `${formatDate(value)} · ${formatTime(value)}`;
+  }
+  if (key === "kind") return humanize(value);
+  return String(value);
+};
+
 const metadataMarkup = (item) => {
-  const entries = Object.entries(item.metadata ?? {})
-    .filter(([key, value]) => key !== "resources" && ["string", "number", "boolean"].includes(typeof value))
-    .filter(([key]) => !["contentHash", "platform", "href"].includes(key))
-    .slice(0, 8);
-  if (entries.length === 0) return "";
-  return `<div class="detail-meta">${entries.map(([key, value]) => `<span><b>${escapeHtml(humanize(key))}</b>${escapeHtml(value)}</span>`).join("")}</div>`;
+  const metadata = item.metadata ?? {};
+  const entries = [];
+  const sender = typeof metadata.sender === "string" ? metadata.sender.trim() : "";
+  const senderEmail = typeof metadata.senderEmail === "string" ? metadata.senderEmail.trim() : "";
+  if (sender !== "" || senderEmail !== "") entries.push(["sender", [sender, senderEmail].filter(Boolean).join(" · ")]);
+  for (const [key, value] of Object.entries(metadata)) {
+    if (key === "resources" || key === "sender" || key === "senderEmail") continue;
+    if (!["string", "number", "boolean"].includes(typeof value)) continue;
+    if (["contentHash", "platform", "href", "provider", "threadId", "path", "courseId"].includes(key)) continue;
+    entries.push([key, metadataValue(key, value)]);
+  }
+  if (typeof metadata.course !== "string" && typeof metadata.courseId === "string") {
+    entries.push(["courseId", metadataValue("courseId", metadata.courseId)]);
+  }
+  const visibleEntries = entries.slice(0, 8);
+  if (visibleEntries.length === 0) return "";
+  return `<div class="detail-meta">${visibleEntries.map(([key, value]) => `<span><b>${escapeHtml(metadataLabel(key))}</b>${escapeHtml(value)}</span>`).join("")}</div>`;
 };
 
 const closeDetail = () => {

@@ -82,7 +82,7 @@
             </article>
 
             <article class="panel review-panel">
-              <div class="panel-header"><div><span class="panel-kicker warm">Needs review</span><h2>Decisions to check</h2></div><span class="queue-count" id="queue-count">0</span></div>
+              <div class="panel-header"><div><span class="panel-kicker warm">Needs review</span><h2>Decisions to check</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="0 items to review">0</span></div>
               <div class="review-list" id="review-list"></div>
             </article>
           </div>
@@ -119,7 +119,7 @@
 
           <div class="overview-grid">
             <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">By source</span><h2>Where the items came from</h2></div></div><div class="source-visual"><div class="source-donut" id="source-donut"><div><strong id="donut-total">0</strong><span>items</span></div></div><div class="source-bars" id="source-bars"></div></div></article>
-            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Attention</span><h2>What may need your time</h2></div><span class="focus-score" id="focus-score">0%</span></div><div class="focus-meter"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"></div></article>
+            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Attention</span><h2>What may need your time</h2></div><span class="focus-score" id="focus-score">0%</span></div><div class="focus-meter" id="focus-meter" role="progressbar" aria-label="Attention level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 percent attention load"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"></div></article>
           </div>
 
           <article class="panel stream-panel">

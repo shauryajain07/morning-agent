@@ -162,6 +162,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, dialog:focus-vi
 #crumb-view { color: var(--text); }
 .topbar-actions { display: flex; align-items: center; gap: 17px; }
 .connection-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+.connection-state .live-dot { background: var(--dim); }
+.connection-state.is-live .live-dot { background: var(--lime); }
 .connection-state.is-reconnecting { color: var(--gold); }
 .connection-state.is-reconnecting .live-dot { background: var(--gold); }
 .run-button {

@@ -146,7 +146,9 @@ const setConnectionStatus = (status) => {
   connectionStatus = status;
   const label = $("#connection-label");
   if (label) label.textContent = status === "live" ? "Connected" : status === "reconnecting" ? "Reconnecting" : "Connecting";
-  $(".connection-state")?.classList.toggle("is-reconnecting", status === "reconnecting");
+  const connectionState = $(".connection-state");
+  connectionState?.classList.toggle("is-live", status === "live");
+  connectionState?.classList.toggle("is-reconnecting", status === "reconnecting");
   if (state.data !== null) renderHeader();
 };
 
@@ -237,6 +239,7 @@ const renderPipeline = () => {
 const renderReviewQueue = () => {
   const queue = state.data?.lowConfidence ?? [];
   $("#queue-count").textContent = queue.length;
+  $("#queue-count").setAttribute("aria-label", `${queue.length} item${queue.length === 1 ? "" : "s"} to review`);
   if (queue.length === 0) {
     $("#review-list").innerHTML = '<div class="review-empty"><div><strong>Nothing to review.</strong><p>No low-confidence decisions are waiting for you.</p></div></div>';
     return;
@@ -314,6 +317,8 @@ const renderFocus = () => {
   const total = metrics.total ?? 0;
   const weighted = total === 0 ? 0 : Math.min(100, Math.round(((metrics.unread ?? 0) + (metrics.deadlines ?? 0) * 1.6 + (metrics.lowConfidence ?? 0) * 2) / Math.max(1, total) * 100));
   $("#focus-score").textContent = `${weighted}%`;
+  $("#focus-meter").setAttribute("aria-valuenow", String(weighted));
+  $("#focus-meter").setAttribute("aria-valuetext", `${weighted}% attention load`);
   $("#focus-meter-fill").style.width = `${weighted}%`;
   $("#focus-breakdown").innerHTML = [
     ["Unread mail", metrics.unread ?? 0],

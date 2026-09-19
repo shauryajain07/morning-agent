@@ -276,7 +276,8 @@ h1 em { color: var(--accent); font-style: normal; }
 .activity-detail { margin-top: 3px; color: var(--dim); font-size: 10px; }
 .activity-time { color: var(--dim); font-size: 10px; white-space: nowrap; }
 .deadline-list { padding: 0 20px 18px; }
-.deadline-row { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.deadline-row { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 0; border: 0; border-top: 1px solid var(--line); color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.deadline-row:hover { background: rgba(255, 255, 255, .035); }
 .deadline-date { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(213, 150, 124, .35); border-radius: 7px; color: var(--coral); background: rgba(213, 150, 124, .08); font-size: 9px; line-height: 1.05; text-align: center; text-transform: uppercase; }
 .deadline-title { overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .deadline-source { margin-top: 3px; color: var(--dim); font-size: 10px; }

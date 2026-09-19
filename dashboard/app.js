@@ -276,7 +276,7 @@ const renderDeadlines = () => {
   }
   $("#deadline-list").innerHTML = deadlines.map((deadline) => {
     const date = new Date(deadline.deadline);
-    return `<div class="deadline-row"><div class="deadline-date"><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { day: "2-digit" }).format(date))}</span><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { month: "short" }).format(date))}</span></div><div><div class="deadline-title">${escapeHtml(deadline.title)}</div><div class="deadline-source">${escapeHtml(source(deadline.source).label)}</div></div><span class="deadline-when">${escapeHtml(formatTime(deadline.deadline))}</span></div>`;
+    return `<button class="deadline-row" data-open-item="${escapeHtml(deadline.id)}" type="button" aria-label="Open ${escapeHtml(deadline.title)}"><span class="deadline-date"><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { day: "2-digit" }).format(date))}</span><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { month: "short" }).format(date))}</span></span><span><span class="deadline-title">${escapeHtml(deadline.title)}</span><span class="deadline-source">${escapeHtml(source(deadline.source).label)}</span></span><span class="deadline-when">${escapeHtml(formatTime(deadline.deadline))}</span></button>`;
   }).join("");
 };
 

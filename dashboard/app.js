@@ -83,6 +83,16 @@ const relativeTime = (value) => {
   return formatDate(value);
 };
 
+const latestObservedAt = () => {
+  let latest = "";
+  for (const item of state.data?.items ?? []) {
+    const value = item.observedAt ?? item.createdAt;
+    if (!value || (latest !== "" && new Date(value).getTime() <= new Date(latest).getTime())) continue;
+    latest = value;
+  }
+  return latest;
+};
+
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
 
 const greeting = (hour) => hour < 12 ? "Good morning," : hour < 18 ? "Good afternoon," : "Good evening,";
@@ -258,6 +268,7 @@ const renderMetrics = () => {
 
 const renderHeader = () => {
   const run = effectiveRun();
+  const latestObservation = latestObservedAt();
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
   $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
@@ -267,14 +278,14 @@ const renderHeader = () => {
     : run.error
       ? `The last run stopped: ${run.error}`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} items are in view. Check anything that needs your attention.`
+        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}.`
         : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} stored items · ready for another run`
+        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} stored items · run again for fresh data`
         : "Waiting for the first run";
   $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "local state" : "offline";
   const button = $("#run-button");

@@ -466,7 +466,20 @@ const render = () => {
 const handleEvent = (event) => {
   let payload;
   try { payload = JSON.parse(event.data); } catch { return; }
-  if (payload.type === "run_started") {
+  if (payload.type === "run_snapshot") {
+    const run = payload.run ?? {};
+    state.liveRunId = run.runId ?? "";
+    state.liveRunActive = run.active === true && Boolean(state.liveRunId);
+    state.liveStage = run.stage ?? "";
+    state.liveLastEventAt = run.lastEventAt ?? run.startedAt ?? "";
+    state.pipeline = {};
+    if (state.liveRunActive && state.liveStage) {
+      const activeIndex = stages.indexOf(state.liveStage);
+      for (let index = 0; index < activeIndex; index += 1) state.pipeline[stages[index]] = "completed";
+      state.pipeline[state.liveStage] = "started";
+    }
+    fetchState().catch(() => {});
+  } else if (payload.type === "run_started") {
     state.liveRunId = payload.runId ?? "";
     state.liveRunActive = true;
     state.liveStage = "collect";
@@ -661,7 +674,7 @@ const connectEvents = () => {
   const stream = new EventSource("/api/events");
   stream.onopen = () => setConnectionStatus("live");
   stream.onerror = () => setConnectionStatus("reconnecting");
-  ["run_started", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
+  ["run_snapshot", "run_started", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
 };
 
 const tickClock = () => {

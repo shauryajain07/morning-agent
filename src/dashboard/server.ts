@@ -52,7 +52,10 @@ type DashboardRunState = {
   error?: string;
 };
 
-type DashboardEvent = MorningRunEvent | { type: "state_invalidated"; at: string };
+type DashboardEvent =
+  | MorningRunEvent
+  | { type: "state_invalidated"; at: string }
+  | { type: "run_snapshot"; at: string; run: DashboardRunState };
 
 type SerializedItem = {
   id: string;
@@ -423,6 +426,7 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
       "x-accel-buffering": "no",
     });
     response.write(`event: connected\ndata: ${JSON.stringify({ type: "connected", at: nowIso() })}\n\n`);
+    response.write(`event: run_snapshot\ndata: ${JSON.stringify({ type: "run_snapshot", at: nowIso(), run: runState })}\n\n`);
     sseClients.add(response);
     request.on("close", () => sseClients.delete(response));
     return true;

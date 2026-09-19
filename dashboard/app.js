@@ -31,6 +31,8 @@ let lastFocusedElement = null;
 let initialLoadErrorShown = false;
 let stateFetchInFlight = null;
 let searchRenderTimer = 0;
+let runStarting = false;
+let runStartTimer = 0;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
 const sourceMeta = {
@@ -239,6 +241,30 @@ const hideDataBanner = () => {
   $("#data-banner").hidden = true;
 };
 
+const clearRunStarting = () => {
+  runStarting = false;
+  if (runStartTimer !== 0) {
+    window.clearTimeout(runStartTimer);
+    runStartTimer = 0;
+  }
+};
+
+const armRunStarting = () => {
+  clearRunStarting();
+  runStarting = true;
+  runStartTimer = window.setTimeout(async () => {
+    runStartTimer = 0;
+    if (!runStarting) return;
+    try { await fetchState(); } catch {}
+    if (!effectiveRun().active && !state.data?.run?.active) {
+      clearRunStarting();
+      toast("The run is taking longer than expected. Check the connection and try again if needed.", "error");
+      renderHeader();
+      renderPipeline();
+    }
+  }, 15_000);
+};
+
 const renderUnavailable = () => {
   $("#pulse-label").textContent = "Unavailable";
   $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
@@ -301,6 +327,7 @@ const fetchState = () => {
       const response = await fetch("/api/state", { cache: "no-store" });
       if (!response.ok) throw new Error("Could not read local agent state.");
       state.data = await response.json();
+      if (state.data.run?.active) clearRunStarting();
       initialLoadErrorShown = false;
       setWorkspaceBusy(false);
       hideDataBanner();
@@ -357,20 +384,23 @@ const renderMetrics = () => {
 
 const renderHeader = () => {
   const run = effectiveRun();
+  const runBusy = run.active || runStarting;
   const latestObservation = latestObservedAt();
   const isStaleSnapshot = snapshotIsStale();
   const isReconnecting = connectionStatus === "reconnecting";
   const hasRunHistory = Boolean(run.completedAt);
   const hasSnapshot = state.data !== null;
-  const label = run.active ? "Processing" : run.error ? "Needs attention" : !hasSnapshot ? "Loading" : run.completedAt ? "Last run complete" : "Ready";
+  const label = runBusy ? "Processing" : run.error ? "Needs attention" : !hasSnapshot ? "Loading" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
-  $("#pipeline-kicker").textContent = run.active ? "Live run" : run.error ? "Last run" : !hasSnapshot ? "Connection" : hasRunHistory ? "Last run" : "Snapshot";
-  $("#pipeline-title").textContent = run.active ? "Collecting now" : run.error ? "Collection stopped" : !hasSnapshot ? "Reading state" : hasRunHistory ? "Collection" : "Saved activity";
-  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : !hasSnapshot ? "Loading" : isReconnecting ? "Offline" : "Idle";
-  $("#pipeline-status").classList.toggle("is-running", run.active);
-  $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !run.active && !run.error);
+  $("#pipeline-kicker").textContent = runBusy ? "Live run" : run.error ? "Last run" : !hasSnapshot ? "Connection" : hasRunHistory ? "Last run" : "Snapshot";
+  $("#pipeline-title").textContent = runBusy ? "Collecting now" : run.error ? "Collection stopped" : !hasSnapshot ? "Reading state" : hasRunHistory ? "Collection" : "Saved activity";
+  $("#pipeline-status").textContent = runBusy ? "Running" : run.error ? "Error" : !hasSnapshot ? "Loading" : isReconnecting ? "Offline" : "Idle";
+  $("#pipeline-status").classList.toggle("is-running", runBusy);
+  $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !runBusy && !run.error);
   $("#status-caption").textContent = run.active
     ? "Checking your latest sources."
+    : runStarting
+      ? "Starting a local collection."
     : run.error
       ? `The last run stopped: ${run.error}`
       : !hasSnapshot
@@ -378,17 +408,21 @@ const renderHeader = () => {
         : `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`;
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
+    : runStarting
+      ? "Starting local collection…"
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : !hasSnapshot
         ? "Reading local state…"
         : `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`;
-  $("#activity-status").textContent = run.active ? "updating" : !hasSnapshot ? "loading" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
+  $("#activity-status").textContent = runBusy ? "updating" : !hasSnapshot ? "loading" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
   const button = $("#run-button");
-  button.disabled = run.active || !hasSnapshot;
-  button.classList.toggle("is-loading", run.active);
+  button.disabled = runBusy || !hasSnapshot;
+  button.classList.toggle("is-loading", runBusy);
   button.innerHTML = run.active
     ? '<span class="run-icon">◌</span><span>Run in progress</span>'
+    : runStarting
+      ? '<span class="run-icon">◌</span><span>Starting run</span>'
     : !hasSnapshot
       ? '<span class="run-icon">◌</span><span>Loading state</span>'
     : `<span class="run-icon">↻</span><span>${run.error ? "Retry run" : "Run now"}</span>`;
@@ -396,6 +430,10 @@ const renderHeader = () => {
 
 const renderPipeline = () => {
   const run = effectiveRun();
+  if (runStarting && !run.active) {
+    $("#pipeline").innerHTML = '<div class="loading-state" role="status">Starting local collection…</div>';
+    return;
+  }
   if (state.data === null && !run.active) {
     $("#pipeline").innerHTML = '<div class="loading-state" role="status">Reading local state…</div>';
     return;
@@ -840,6 +878,7 @@ const handleEvent = (event) => {
   try { payload = JSON.parse(event.data); } catch { return; }
   if (payload.type === "run_snapshot") {
     const run = payload.run ?? {};
+    if (run.active === true) clearRunStarting();
     state.liveRunId = run.runId ?? "";
     state.liveRunActive = run.active === true && Boolean(state.liveRunId);
     state.liveStage = run.stage ?? "";
@@ -852,6 +891,7 @@ const handleEvent = (event) => {
     }
     fetchState().catch(() => {});
   } else if (payload.type === "run_started") {
+    clearRunStarting();
     state.liveRunId = payload.runId ?? "";
     state.liveRunActive = true;
     state.liveStage = "collect";
@@ -873,6 +913,7 @@ const handleEvent = (event) => {
   } else if (payload.type === "actions_completed") {
     pushActivity("Actions checked", `${payload.count} possible actions reviewed`, "gold", payload.at);
   } else if (payload.type === "run_completed") {
+    clearRunStarting();
     state.liveRunActive = false;
     state.liveStage = "";
     state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
@@ -897,6 +938,7 @@ const handleEvent = (event) => {
     pushActivity("Run complete", `${payload.itemCount} items · ${payload.decisionCount} decisions`, "lime", payload.at);
     fetchState().catch(() => {});
   } else if (payload.type === "run_failed") {
+    clearRunStarting();
     state.liveRunActive = false;
     state.liveStage = "";
     state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
@@ -925,10 +967,14 @@ const handleEvent = (event) => {
 };
 
 const runPulse = async (mock = false) => {
+  if (runStarting || effectiveRun().active) return;
+  armRunStarting();
   const button = $("#run-button");
   button.disabled = true;
   button.classList.add("is-loading");
   button.innerHTML = '<span class="run-icon">◌</span><span>Starting run</span>';
+  renderHeader();
+  renderPipeline();
   try {
     const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mock }) });
     const payload = await response.json();
@@ -936,8 +982,10 @@ const runPulse = async (mock = false) => {
     toast(mock ? "Demo run started." : "Run started.", "success");
     fetchState().catch(() => {});
   } catch (error) {
+    clearRunStarting();
     toast(errorMessage(error, "Could not start run."), "error");
     renderHeader();
+    renderPipeline();
   }
 };
 

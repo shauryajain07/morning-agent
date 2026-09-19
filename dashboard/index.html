@@ -93,7 +93,7 @@
 
           <div class="dashboard-grid dashboard-grid-top">
             <article class="panel pipeline-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Run history</span><h2>Last collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
+              <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run history</span><h2 id="pipeline-title">Last collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
               <div class="pipeline" id="pipeline" aria-label="Morning Agent pipeline"></div>
               <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
             </article>
@@ -145,6 +145,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-15"></script>
+    <script type="module" src="/app.js?rev=20260919-16"></script>
   </body>
 </html>

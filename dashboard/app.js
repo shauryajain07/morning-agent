@@ -184,6 +184,8 @@ const hideDataBanner = () => {
 const renderUnavailable = () => {
   $("#pulse-label").textContent = "Unavailable";
   $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
+  $("#pipeline-kicker").textContent = "Connection";
+  $("#pipeline-title").textContent = "Collection unavailable";
   $("#pipeline-status").textContent = "Unavailable";
   $("#pipeline-footnote").textContent = "Could not read local state.";
   $("#review-list").innerHTML = '<div class="empty-state"><div><strong>Review queue unavailable.</strong><p>Reconnect to read pending decisions.</p></div></div>';
@@ -279,8 +281,12 @@ const renderMetrics = () => {
 const renderHeader = () => {
   const run = effectiveRun();
   const latestObservation = latestObservedAt();
+  const hasRunHistory = Boolean(run.completedAt);
+  const hasSnapshot = Boolean(state.data?.metrics?.total);
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
+  $("#pipeline-kicker").textContent = run.active ? "Live run" : hasRunHistory ? "Run history" : hasSnapshot ? "Local snapshot" : "Run history";
+  $("#pipeline-title").textContent = run.active ? "Collecting now" : hasRunHistory ? "Last collection" : hasSnapshot ? "Collection status" : "First collection";
   $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", run.active);
   $("#status-caption").textContent = run.active

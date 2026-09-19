@@ -17,7 +17,7 @@ const state = {
   course: "",
   query: "",
   streamLimit: 50,
-  view: window.localStorage.getItem("morning-agent:view") === "everything" ? "everything" : "control",
+  view: "control",
   events: [],
   pipeline: {},
   liveRunId: "",
@@ -888,7 +888,6 @@ const clearFilters = () => {
 const selectView = (view) => {
   const control = view === "control";
   state.view = control ? "control" : "everything";
-  window.localStorage.setItem("morning-agent:view", state.view);
   $("#control-view").classList.toggle("is-hidden", !control);
   $("#everything-view").classList.toggle("is-hidden", control);
   $$(".nav-item").forEach((button) => {

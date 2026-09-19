@@ -6,13 +6,14 @@ import { fileURLToPath } from "node:url";
 import { runMorning } from "../index.js";
 import { defaultSettings } from "../config/settings.js";
 import { isSensitiveDownloadName, shouldIgnoreDownload } from "../collectors/downloads.js";
-import { createStore } from "../storage/db.js";
+import { createStore, type MorningAgentStore } from "../storage/db.js";
 import {
   agentSources,
   type AgentItem,
   type DecisionName,
   type DecisionRecord,
   type MorningRunEvent,
+  type MorningRunRecord,
   type MorningRunStage,
   type ReviewStatus,
   type StoredAgentItem,
@@ -131,26 +132,35 @@ type DashboardState = {
 
 const sseClients = new Set<ServerResponse>();
 
+const dashboardRunStateFromRecord = (
+  latest: MorningRunRecord | undefined,
+  treatRunningAsActive = false,
+): DashboardRunState => {
+  if (latest === undefined) return { active: false };
+  const active = latest.status === "running" && treatRunningAsActive;
+  const error = latest.status === "failed"
+    ? latest.error
+    : latest.status === "running" && !treatRunningAsActive
+      ? "The previous run was interrupted."
+      : undefined;
+  return {
+    active,
+    runId: latest.runId,
+    ...(latest.stage === undefined ? {} : { stage: latest.stage }),
+    startedAt: latest.startedAt.toISOString(),
+    lastEventAt: latest.lastEventAt.toISOString(),
+    ...(latest.completedAt === undefined ? {} : { completedAt: latest.completedAt.toISOString() }),
+    ...(latest.itemCount === undefined ? {} : { itemCount: latest.itemCount }),
+    ...(latest.decisionCount === undefined ? {} : { decisionCount: latest.decisionCount }),
+    ...(latest.actionCount === undefined ? {} : { actionCount: latest.actionCount }),
+    ...(error === undefined ? {} : { error }),
+  };
+};
+
 const loadPersistedRunState = (): DashboardRunState => {
   const store = createStore({ dbPath: defaultSettings.databasePath });
   try {
-    const latest = store.getLatestRun();
-    if (latest === undefined) return { active: false };
-    const interrupted = latest.status === "running";
-    return {
-      active: false,
-      runId: latest.runId,
-      ...(latest.stage === undefined ? {} : { stage: latest.stage }),
-      startedAt: latest.startedAt.toISOString(),
-      lastEventAt: latest.lastEventAt.toISOString(),
-      ...(latest.completedAt === undefined ? {} : { completedAt: latest.completedAt.toISOString() }),
-      ...(latest.itemCount === undefined ? {} : { itemCount: latest.itemCount }),
-      ...(latest.decisionCount === undefined ? {} : { decisionCount: latest.decisionCount }),
-      ...(latest.actionCount === undefined ? {} : { actionCount: latest.actionCount }),
-      ...(latest.error === undefined && !interrupted
-        ? {}
-        : { error: latest.error ?? "The previous run was interrupted." }),
-    };
+    return dashboardRunStateFromRecord(store.getLatestRun());
   } finally {
     store.close();
   }
@@ -158,6 +168,27 @@ const loadPersistedRunState = (): DashboardRunState => {
 
 let runState: DashboardRunState = loadPersistedRunState();
 let activeRun: Promise<void> | undefined;
+
+const syncPersistedRunState = (store: MorningAgentStore): void => {
+  if (activeRun !== undefined) return;
+  const latest = store.getLatestRun();
+  if (latest === undefined) return;
+  const latestEventAt = latest.lastEventAt.getTime();
+  const currentEventAt = runState.lastEventAt === undefined
+    ? Number.NEGATIVE_INFINITY
+    : Date.parse(runState.lastEventAt);
+  if (latest.runId === runState.runId && (!Number.isFinite(latestEventAt) || latestEventAt <= currentEventAt)) return;
+  runState = dashboardRunStateFromRecord(latest, latest.status === "running");
+};
+
+const refreshPersistedRunState = (): void => {
+  const store = createStore({ dbPath: defaultSettings.databasePath });
+  try {
+    syncPersistedRunState(store);
+  } finally {
+    store.close();
+  }
+};
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -266,6 +297,7 @@ const serializeDecision = (decision: DecisionRecord): SerializedDecision => ({
 const buildDashboardState = (): DashboardState => {
   const store = createStore({ dbPath: defaultSettings.databasePath });
   try {
+    syncPersistedRunState(store);
     const items = store.getItems(1_000).filter(
       (item) => !(item.source === "downloads" && shouldIgnoreDownload(item.title)),
     );
@@ -419,6 +451,7 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
   }
 
   if (request.method === "GET" && pathname === "/api/events") {
+    refreshPersistedRunState();
     response.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-cache, no-transform",
@@ -433,6 +466,7 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
   }
 
   if (request.method === "POST" && pathname === "/api/run") {
+    refreshPersistedRunState();
     if (activeRun !== undefined || runState.active) {
       sendError(response, 409, "A run is already in progress.");
       return true;

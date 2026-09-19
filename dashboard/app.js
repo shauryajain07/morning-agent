@@ -644,6 +644,14 @@ const syncFilterControls = () => {
     candidate.setAttribute("aria-pressed", active ? "true" : "false");
   });
 };
+$("[data-deadline-view]").addEventListener("click", () => {
+  state.filter = "deadlines";
+  state.streamLimit = 50;
+  window.localStorage.setItem("morning-agent:filter", state.filter);
+  selectView("everything");
+  syncFilterControls();
+  renderStream();
+});
 $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
   state.streamLimit = 50;

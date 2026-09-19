@@ -3,6 +3,8 @@ dist/
 .data/
 .browser-profile/
 .outlook-browser-profile/
+.gmail-token.json
+.gmail-credentials.json
 .env
 .env.*
 !.env.example

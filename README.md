@@ -18,6 +18,21 @@ Live Jev decisions require `TYPESAFE_API_KEY` in `.env` (the `npm run morning` s
 
 State is stored in `.data/morning-agent.sqlite` by default. Set `MORNING_AGENT_DB_PATH` to override it.
 
+## Gmail collection
+
+Gmail is collected through the Gmail API with a read-only OAuth scope. Configure either a refresh-token credential set or standard Google OAuth JSON files in `.env`:
+
+```sh
+GMAIL_ENABLED=true
+GMAIL_CLIENT_ID=your-oauth-client-id
+GMAIL_CLIENT_SECRET=your-oauth-client-secret
+GMAIL_REFRESH_TOKEN=your-refresh-token
+GMAIL_LOOKBACK_HOURS=24
+GMAIL_MAX_MESSAGES=500
+```
+
+`GMAIL_ACCESS_TOKEN` is supported for a short-lived token. Alternatively, set `GMAIL_CREDENTIALS_PATH` and `GMAIL_TOKEN_PATH` to the OAuth client and token JSON files. A Google API key alone cannot read a private mailbox. With no `GMAIL_QUERY`, the collector lists recent Gmail messages, fetches their full read-only MIME payloads, and applies the exact lookback window using Gmail's received timestamp; use `GMAIL_QUERY="is:unread newer_than:1d"` to restrict it to unread mail. It never modifies labels, marks mail read, sends, replies, archives, or deletes.
+
 ## Moodle collection
 
 Moodle is collected through a read-only Playwright adapter because it does not provide the needed API. Copy the Moodle settings into `.env`, for example:

@@ -1,5 +1,6 @@
 import type { AgentItem } from "../types/index.js";
 import { parseAgentItems } from "../types/schema.js";
+import { collectGmailEmailItems } from "./gmail.js";
 
 export type EmailCollector = {
   collect(): Promise<AgentItem[]>;
@@ -53,4 +54,4 @@ export const getMockEmailItems = (): AgentItem[] =>
     },
   ]);
 
-export const collectEmailItems = async (): Promise<AgentItem[]> => [];
+export const collectEmailItems = async (): Promise<AgentItem[]> => collectGmailEmailItems();

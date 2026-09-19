@@ -1,4 +1,16 @@
 const validFilters = new Set(["all", "deadlines", "review", "email", "courses", "work", "moodle", "news", "edstem", "files"]);
+const streamScopeLabels = {
+  all: "All items",
+  deadlines: "Deadlines",
+  review: "Review queue",
+  email: "Inbox",
+  courses: "Coursework",
+  work: "Work",
+  moodle: "Moodle",
+  news: "Daily news",
+  edstem: "Ed Lessons",
+  files: "Files",
+};
 const persistedFilter = window.localStorage.getItem("morning-agent:filter");
 const persistedCourse = window.localStorage.getItem("morning-agent:course") ?? "";
 
@@ -569,6 +581,9 @@ const emptyStreamCopy = () => {
 const renderStream = () => {
   const items = filteredItems();
   const deadlineIds = upcomingDeadlineIds();
+  $("#stream-title").textContent = state.query !== "" || state.course !== ""
+    ? "Matching items"
+    : streamScopeLabels[state.filter] ?? "All items";
   const pendingReviewsByItem = new Map();
   for (const entry of state.data?.lowConfidence ?? []) {
     const pending = pendingReviewsByItem.get(entry.item.id) ?? [];

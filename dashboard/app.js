@@ -1053,8 +1053,10 @@ $("#detail-dialog").addEventListener("cancel", () => { window.setTimeout(closeDe
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "1") { event.preventDefault(); selectView("control"); }
   if ((event.metaKey || event.ctrlKey) && event.key === "2") { event.preventDefault(); selectView("everything"); }
-  if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) {
-    event.preventDefault(); $("#search-input").focus();
+  if (event.key === "/" && !$("#detail-dialog")?.open && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) {
+    event.preventDefault();
+    if (state.view !== "everything") selectView("everything");
+    $("#search-input").focus();
   }
 });
 

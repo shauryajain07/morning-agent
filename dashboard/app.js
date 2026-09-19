@@ -257,6 +257,10 @@ const renderUnavailable = () => {
   $("#stream-result-count").textContent = "Unavailable";
   $("#stream-pagination").textContent = "Unavailable";
   $("#pipeline").innerHTML = '<div class="empty-state"><div><strong>Collection is unavailable.</strong><p>Reconnect to see the run stages.</p></div></div>';
+  const button = $("#run-button");
+  button.disabled = true;
+  button.classList.remove("is-loading");
+  button.innerHTML = '<span class="run-icon">↻</span><span>Reconnect first</span>';
 };
 
 const toast = (message, type = "") => {
@@ -1083,7 +1087,9 @@ document.addEventListener("keydown", (event) => {
 
 const connectEvents = () => {
   const stream = new EventSource("/api/events");
-  stream.onopen = () => setConnectionStatus("live");
+  stream.onopen = () => setConnectionStatus(state.data === null
+    ? connectionStatus === "reconnecting" ? "reconnecting" : "connecting"
+    : "live");
   stream.onerror = () => setConnectionStatus("reconnecting");
   ["run_snapshot", "run_started", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
 };

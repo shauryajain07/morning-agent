@@ -363,6 +363,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .stream-subtitle { display: block; overflow: hidden; margin-top: 3px; color: var(--dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .stream-source, .stream-when { color: var(--muted); font-size: 11px; }
 .stream-state { display: inline-flex; width: fit-content; padding: 4px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); font-size: 10px; }
+.stream-state.is-neutral { padding-right: 0; padding-left: 0; border-color: transparent; background: transparent; }
 .stream-state.is-hot { color: var(--gold); border-color: rgba(216, 173, 105, .35); background: rgba(216, 173, 105, .08); }
 .stream-state.is-unread { color: var(--accent); border-color: rgba(106, 169, 255, .35); background: var(--accent-soft); }
 .stream-state.is-deadline { color: var(--coral); border-color: rgba(213, 150, 124, .35); background: rgba(213, 150, 124, .08); }

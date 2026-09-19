@@ -738,7 +738,7 @@ const renderStream = () => {
     const isDeadline = deadlineIds.has(item.id);
     const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
     const itemCourse = courseInfo(item);
-    const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";
+    const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "is-neutral";
     const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
     const subtitle = [itemCourse?.label, cleanDisplayText(item.content ?? "")].filter(Boolean).join(" · ").slice(0, 120);
     return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}" aria-hidden="true">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(itemDisplayTimestamp(item)))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;

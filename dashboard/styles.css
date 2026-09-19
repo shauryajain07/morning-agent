@@ -304,9 +304,9 @@ h1 em { color: var(--accent); font-style: normal; }
 .text-button { padding: 3px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; cursor: pointer; }
 .text-button:hover { color: var(--text); }
 
-.view-toggle { display: flex; gap: 2px; max-width: 100%; padding: 3px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); scrollbar-width: none; }
+.view-toggle { display: flex; flex-wrap: wrap; gap: 2px; max-width: 100%; padding: 3px; overflow: visible; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .view-toggle::-webkit-scrollbar { display: none; }
-.filter-button { padding: 7px 10px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 12px; cursor: pointer; }
+.filter-button { padding: 7px 10px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .filter-button:hover { color: var(--text); }
 .filter-button.is-active { color: #fff; background: var(--accent); font-weight: 600; }
 .overview-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 12px; margin-bottom: 12px; }
@@ -456,7 +456,7 @@ h1 em { color: var(--accent); font-style: normal; }
   .stream-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px 15px; }
   .stream-source, .stream-when { display: none; }
   .stream-state { justify-self: end; }
-  .view-toggle { width: 100%; margin-top: 20px; }
+  .view-toggle { width: 100%; margin-top: 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .filter-button { flex: 0 0 auto; min-width: 72px; }
   .stream-result-count { margin-top: 7px; }
   .stream-footer { padding: 11px 15px 13px; }

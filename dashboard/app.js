@@ -1,4 +1,4 @@
-const validFilters = new Set(["all", "deadlines", "email", "work", "moodle", "news", "edstem", "files"]);
+const validFilters = new Set(["all", "deadlines", "review", "email", "courses", "work", "moodle", "news", "edstem", "files"]);
 const persistedFilter = window.localStorage.getItem("morning-agent:filter");
 const persistedCourse = window.localStorage.getItem("morning-agent:course") ?? "";
 
@@ -462,11 +462,14 @@ const renderCourseFilter = () => {
 
 const filteredItems = () => {
   const items = state.data?.items ?? [];
+  const reviewItemIds = new Set((state.data?.lowConfidence ?? []).map((entry) => entry.item.id));
   return items.filter((item) => {
     const matchesFilter = state.filter === "all"
       || (state.filter === "work" && ["github", "calendar"].includes(item.source))
       || (state.filter === "deadlines" && item.deadline !== undefined)
+      || (state.filter === "review" && reviewItemIds.has(item.id))
       || (state.filter === "moodle" && item.source === "moodle")
+      || (state.filter === "courses" && ["moodle", "edstem"].includes(item.source))
       || (state.filter === "email" && item.source === "email")
       || (state.filter === "news" && item.source === "news")
       || (state.filter === "edstem" && item.source === "edstem")
@@ -721,7 +724,6 @@ const selectView = (view) => {
   $("#crumb-view").textContent = control ? "Overview" : "All activity";
 };
 
-$$('[data-view]').forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
 $("#run-button").addEventListener("click", () => runPulse(false));
 $("#data-retry").addEventListener("click", async () => {
   const button = $("#data-retry");
@@ -763,6 +765,28 @@ const syncFilterControls = () => {
     candidate.setAttribute("aria-pressed", active ? "true" : "false");
   });
 };
+const openFilteredView = (filter) => {
+  state.filter = validFilters.has(filter) ? filter : "all";
+  state.course = "";
+  state.query = "";
+  state.streamLimit = 50;
+  window.localStorage.setItem("morning-agent:filter", state.filter);
+  window.localStorage.removeItem("morning-agent:course");
+  $("#search-input").value = "";
+  $("#search-clear").hidden = true;
+  $("#course-filter").value = "";
+  selectView("everything");
+  syncFilterControls();
+  renderStream();
+};
+const activateViewTarget = (button) => {
+  if (button.dataset.filterTarget !== undefined) {
+    openFilteredView(button.dataset.filterTarget);
+    return;
+  }
+  selectView(button.dataset.view);
+};
+$$('[data-view]').forEach((button) => button.addEventListener("click", () => activateViewTarget(button)));
 $("[data-deadline-view]").addEventListener("click", () => {
   state.filter = "deadlines";
   state.streamLimit = 50;
@@ -795,7 +819,7 @@ document.addEventListener("keydown", (event) => {
     : null;
   if (viewShortcut && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
-    selectView(viewShortcut.dataset.view);
+    activateViewTarget(viewShortcut);
     return;
   }
   if ((event.metaKey || event.ctrlKey) && event.key === "1") { event.preventDefault(); selectView("control"); }

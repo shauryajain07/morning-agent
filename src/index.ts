@@ -5,6 +5,7 @@ import { collectCalendarItems } from "./collectors/calendar.js";
 import { collectDownloads } from "./collectors/downloads.js";
 import { collectEmailItems } from "./collectors/email.js";
 import { collectGitHubItems } from "./collectors/github.js";
+import { collectOutlookEmailItems } from "./collectors/outlook.js";
 import { collectMockItems } from "./collectors/mock.js";
 import {
   HKUMoodleProvider,
@@ -64,15 +65,25 @@ const collectRealItems = async (): Promise<AgentItem[]> => {
     if (isMissingPathError(error)) return [];
     throw error;
   });
-  const [calendar, email, github, announcements, assignments, courseFiles] = await Promise.all([
+  const [calendar, email, outlookEmail, github, announcements, assignments, courseFiles] = await Promise.all([
     collectCalendarItems(),
     collectEmailItems(),
+    collectOutlookEmailItems(),
     collectGitHubItems(),
     moodle.getAnnouncements(),
     moodle.getAssignments(),
     moodle.getCourseFiles(),
   ]);
-  return [...calendar, ...downloads, ...email, ...github, ...announcements, ...assignments, ...courseFiles];
+  return [
+    ...calendar,
+    ...downloads,
+    ...email,
+    ...outlookEmail,
+    ...github,
+    ...announcements,
+    ...assignments,
+    ...courseFiles,
+  ];
 };
 
 const findDecision = (

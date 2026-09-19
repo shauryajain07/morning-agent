@@ -32,4 +32,19 @@ The first run opens a persistent Chromium profile and waits up to five minutes f
 
 The browser layer is deterministic: it navigates only to the configured Moodle origin and extracts a compact page snapshot. Jev receives normalized Moodle items afterward for typed decisions; it does not choose arbitrary browser clicks or generate navigation text. Moodle mutations and coursework submission are outside the action allowlist.
 
+## Outlook collection
+
+Outlook email is collected through the read-only Outlook Web UI, alongside the Moodle browser adapter. It does not use Microsoft Graph or automate credentials. Enable it in `.env`:
+
+```sh
+OUTLOOK_ENABLED=true
+OUTLOOK_BASE_URL=https://outlook.office.com/mail/
+OUTLOOK_BROWSER_PROFILE=.outlook-browser-profile
+OUTLOOK_LOOKBACK_HOURS=24
+```
+
+The first run opens a separate persistent Chromium profile and waits up to five minutes for you to complete Outlook, SSO, and MFA manually. Later runs reuse that session. It reads the inbox list for the configured lookback window, follows no email actions, and never marks messages read, replies, archives, deletes, or sends mail. `OUTLOOK_MAX_SCROLLS` bounds list scrolling, and `OUTLOOK_CDP_URL` can attach to an already-running Chromium session. Native Outlook desktop is not used by the standalone CLI; the persistent Outlook Web profile makes this work the same way as Moodle.
+
+Outlook records use the existing `email` source and go through the same TypeSafe Jev email questions as Gmail/mock email. Stable browser-derived IDs and the local SQLite seen-item store prevent the same message from being briefed repeatedly on daily runs.
+
 External text is always treated as data. Only the allowlisted typed actions can execute, and calendar/task mutations remain approval-gated even at high confidence.

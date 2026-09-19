@@ -1,10 +1,17 @@
+const validFilters = new Set(["all", "email", "work", "moodle", "news", "edstem"]);
+const persistedFilter = window.localStorage.getItem("morning-agent:filter");
+
 const state = {
   data: null,
-  filter: "all",
+  filter: validFilters.has(persistedFilter) ? persistedFilter : "all",
   query: "",
+  view: window.localStorage.getItem("morning-agent:view") === "everything" ? "everything" : "control",
   events: [],
   pipeline: {},
 };
+
+let connectionStatus = "connecting";
+let lastFocusedElement = null;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
 const sourceMeta = {
@@ -40,8 +47,11 @@ const formatDate = (value) => {
 
 const relativeTime = (value) => {
   if (!value) return "—";
-  const delta = Date.now() - new Date(value).getTime();
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "—";
+  const delta = Date.now() - timestamp;
   if (delta < 30_000) return "just now";
+  if (delta < 0) return "upcoming";
   if (delta < 3_600_000) return `${Math.max(1, Math.round(delta / 60_000))}m ago`;
   if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
   return formatDate(value);
@@ -72,6 +82,13 @@ const toast = (message, type = "") => {
   window.setTimeout(() => element.remove(), 4200);
 };
 
+const setConnectionStatus = (status) => {
+  connectionStatus = status;
+  const label = $("#connection-label");
+  if (label) label.textContent = status === "live" ? "LIVE LINK" : status === "reconnecting" ? "RECONNECTING" : "CONNECTING";
+  $(".connection-state")?.classList.toggle("is-reconnecting", status === "reconnecting");
+};
+
 const pushActivity = (title, detail, tone = "neutral", at = new Date().toISOString()) => {
   state.events.unshift({ title, detail, tone, at });
   state.events = state.events.slice(0, 9);
@@ -79,10 +96,15 @@ const pushActivity = (title, detail, tone = "neutral", at = new Date().toISOStri
 };
 
 const fetchState = async () => {
-  const response = await fetch("/api/state", { cache: "no-store" });
-  if (!response.ok) throw new Error("Could not read local agent state.");
-  state.data = await response.json();
-  render();
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not read local agent state.");
+    state.data = await response.json();
+    render();
+  } catch (error) {
+    if (state.data === null) toast(error instanceof Error ? error.message : "Could not read local agent state.", "error");
+    throw error;
+  }
 };
 
 const renderMetrics = () => {
@@ -107,7 +129,6 @@ const renderHeader = () => {
   $("#pulse-label").textContent = label;
   $("#pipeline-status").textContent = run.active ? "RUNNING" : run.error ? "ERROR" : "IDLE";
   $("#pipeline-status").classList.toggle("is-running", run.active);
-  $("#connection-label").textContent = "LIVE LINK";
   $("#status-caption").textContent = run.active
     ? "Jev is evaluating your latest signals. Watch the pipeline move in real time."
     : run.error
@@ -120,8 +141,12 @@ const renderHeader = () => {
     : run.completedAt
       ? `Last pulse ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`
       : "Waiting for the next pulse";
-  $("#run-button").disabled = run.active;
-  $("#run-button").innerHTML = run.active ? '<span class="run-icon">◌</span><span>Pulse running</span>' : '<span class="run-icon">↻</span><span>Run pulse</span>';
+  const button = $("#run-button");
+  button.disabled = run.active;
+  button.classList.toggle("is-loading", run.active);
+  button.innerHTML = run.active
+    ? '<span class="run-icon">◌</span><span>Pulse running</span>'
+    : `<span class="run-icon">↻</span><span>${run.error ? "Retry pulse" : "Run pulse"}</span>`;
 };
 
 const renderPipeline = () => {
@@ -176,20 +201,29 @@ const renderDeadlines = () => {
 const renderSourceVisual = () => {
   const counts = state.data?.sources ?? {};
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  const colors = ["var(--cyan)", "var(--lime)", "var(--violet)", "var(--coral)", "var(--gold)"];
+  const sourceOrder = ["email", "github", "moodle", "calendar", "downloads", "news", "edstem"];
+  const colors = {
+    email: "var(--lime)",
+    github: "var(--cyan)",
+    moodle: "var(--violet)",
+    calendar: "var(--cyan)",
+    downloads: "var(--coral)",
+    news: "var(--gold)",
+    edstem: "var(--coral)",
+  };
   let cursor = 0;
-  const segments = Object.entries(counts).map(([name, count], index) => {
+  const segments = sourceOrder.map((name) => {
+    const count = counts[name] ?? 0;
     const start = total === 0 ? 0 : cursor / total * 100;
     cursor += count;
     const end = total === 0 ? 0 : cursor / total * 100;
-    return `${colors[index % colors.length]} ${start}% ${end}%`;
+    return `${colors[name]} ${start}% ${end}%`;
   });
   $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
-  const labels = ["email", "github", "moodle", "calendar", "downloads", "news", "edstem"];
-  $("#source-bars").innerHTML = labels.map((name) => {
+  $("#source-bars").innerHTML = sourceOrder.map((name) => {
     const count = counts[name] ?? 0;
     const width = total === 0 ? 0 : Math.max(4, count / total * 100);
-    return `<div class="source-bar-row"><span>${escapeHtml(source(name).label)}</span><div class="source-bar-track"><div class="source-bar-fill" style="width:${width}%"></div></div><b>${count}</b></div>`;
+    return `<div class="source-bar-row"><span>${escapeHtml(source(name).label)}</span><div class="source-bar-track"><div class="source-bar-fill" style="--bar-color:${colors[name]};width:${width}%"></div></div><b>${count}</b></div>`;
   }).join("");
 };
 
@@ -223,17 +257,50 @@ const filteredItems = () => {
 const renderStream = () => {
   const items = filteredItems();
   const decisions = state.data?.decisions ?? [];
+  $("#stream-result-count").textContent = `${items.length} signal${items.length === 1 ? "" : "s"}${state.query ? " · filtered" : ""}`;
   if (items.length === 0) {
     $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No signals here yet.</strong><p>Run a pulse or loosen the filter to see more of your day.</p></div></div>';
     return;
   }
-  $("#stream-table").innerHTML = items.slice(0, 100).map((item) => {
+  $("#stream-table").innerHTML = items.map((item) => {
     const meta = source(item.source);
     const itemDecisions = decisions.filter((decision) => decision.itemId === item.id);
     const weakest = itemDecisions.slice().sort((left, right) => confidence(left) - confidence(right))[0];
     const hot = weakest && confidence(weakest) < 75;
-    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml((item.content ?? "").slice(0, 100))}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${hot ? "is-hot" : ""}">${hot ? `${confidence(weakest)}% review` : "observed"}</span></button>`;
+    const unread = item.metadata?.unread === true;
+    const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
+    const stateClass = hot ? "is-hot" : unread ? "is-unread" : "";
+    const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isLesson ? "lesson" : "observed";
+    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml((item.content ?? "").slice(0, 100))}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
+};
+
+const safeHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value) ? value : "";
+
+const resourceMarkup = (item) => {
+  const resources = Array.isArray(item.metadata?.resources) ? item.metadata.resources : [];
+  const links = resources
+    .filter((resource) => resource && safeHttpUrl(resource.url))
+    .slice(0, 20)
+    .map((resource) => `<a class="resource-link" href="${escapeHtml(resource.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(resource.title || "Resource")}</span><span>↗</span></a>`)
+    .join("");
+  return links.length === 0 ? "" : `<div class="detail-section resource-section"><h3>Lesson resources</h3><div class="resource-list">${links}</div></div>`;
+};
+
+const metadataMarkup = (item) => {
+  const entries = Object.entries(item.metadata ?? {})
+    .filter(([key, value]) => key !== "resources" && ["string", "number", "boolean"].includes(typeof value))
+    .filter(([key]) => !["contentHash", "platform"].includes(key))
+    .slice(0, 8);
+  if (entries.length === 0) return "";
+  return `<div class="detail-meta">${entries.map(([key, value]) => `<span><b>${escapeHtml(humanize(key))}</b>${escapeHtml(value)}</span>`).join("")}</div>`;
+};
+
+const closeDetail = () => {
+  const dialog = $("#detail-dialog");
+  if (dialog.open) dialog.close();
+  lastFocusedElement?.focus?.();
+  lastFocusedElement = null;
 };
 
 const openItem = (itemId) => {
@@ -241,10 +308,13 @@ const openItem = (itemId) => {
   if (!item) return;
   const meta = source(item.source);
   const decisions = (state.data?.decisions ?? []).filter((decision) => decision.itemId === item.id);
-  const url = item.url && /^https?:\/\//i.test(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2>${escapeHtml(item.title)}</h2><div class="detail-content">${escapeHtml(item.content ?? "No content excerpt stored for this signal.")}</div>${url}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this signal.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
-  $("#detail-dialog").showModal();
-  $("#close-detail").addEventListener("click", () => $("#detail-dialog").close(), { once: true });
+  const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
+  const dialog = $("#detail-dialog");
+  lastFocusedElement = document.activeElement;
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(item.content ?? "No content excerpt stored for this signal.")}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this signal.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  if (!dialog.open) dialog.showModal();
+  $("#close-detail").addEventListener("click", closeDetail, { once: true });
+  $("#close-detail").focus();
 };
 
 const render = () => {
@@ -289,13 +359,18 @@ const handleEvent = (event) => {
 };
 
 const runPulse = async (mock = false) => {
+  const button = $("#run-button");
+  button.disabled = true;
+  button.classList.add("is-loading");
+  button.innerHTML = '<span class="run-icon">◌</span><span>Starting pulse</span>';
   try {
     const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mock }) });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error ?? "Could not start pulse.");
     toast(mock ? "Demo pulse started." : "Live pulse started.", "success");
   } catch (error) {
-    toast(error.message, "error");
+    toast(error instanceof Error ? error.message : "Could not start pulse.", "error");
+    renderHeader();
   }
 };
 
@@ -315,18 +390,44 @@ const resolveReview = async (button) => {
 
 const selectView = (view) => {
   const control = view === "control";
+  state.view = control ? "control" : "everything";
+  window.localStorage.setItem("morning-agent:view", state.view);
   $("#control-view").classList.toggle("is-hidden", !control);
   $("#everything-view").classList.toggle("is-hidden", control);
-  $$(".nav-item").forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
+  $$(".nav-item").forEach((button) => {
+    const active = button.dataset.view === state.view;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "page" : "false");
+  });
   $("#crumb-view").textContent = control ? "CONTROL ROOM" : "EVERYTHING";
 };
 
 $$('[data-view]').forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
 $("#run-button").addEventListener("click", () => runPulse(false));
-$("#search-input").addEventListener("input", (event) => { state.query = event.target.value; renderStream(); });
+$("#search-input").addEventListener("input", (event) => {
+  state.query = event.target.value.trim();
+  $("#search-clear").hidden = state.query.length === 0;
+  renderStream();
+});
+$("#search-clear").addEventListener("click", () => {
+  $("#search-input").value = "";
+  state.query = "";
+  $("#search-clear").hidden = true;
+  $("#search-input").focus();
+  renderStream();
+});
+const syncFilterControls = () => {
+  $$('[data-filter]').forEach((candidate) => {
+    const active = candidate.dataset.filter === state.filter;
+    candidate.classList.toggle("is-active", active);
+    candidate.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+};
 $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
-  $$('[data-filter]').forEach((candidate) => candidate.classList.toggle("is-active", candidate === button));
+  window.localStorage.setItem("morning-agent:filter", state.filter);
+  if (button.closest(".source-stack")) selectView("everything");
+  syncFilterControls();
   renderStream();
 }));
 document.addEventListener("click", (event) => {
@@ -335,16 +436,20 @@ document.addEventListener("click", (event) => {
   const itemButton = event.target.closest("[data-open-item]");
   if (itemButton) openItem(itemButton.dataset.openItem);
 });
-$("#detail-dialog").addEventListener("click", (event) => { if (event.target === $("#detail-dialog")) $("#detail-dialog").close(); });
+$("#detail-dialog").addEventListener("click", (event) => { if (event.target === $("#detail-dialog")) closeDetail(); });
+$("#detail-dialog").addEventListener("cancel", () => { window.setTimeout(closeDetail, 0); });
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "1") { event.preventDefault(); selectView("control"); }
   if ((event.metaKey || event.ctrlKey) && event.key === "2") { event.preventDefault(); selectView("everything"); }
+  if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) {
+    event.preventDefault(); $("#search-input").focus();
+  }
 });
 
 const connectEvents = () => {
   const stream = new EventSource("/api/events");
-  stream.onopen = () => { $("#connection-label").textContent = "LIVE LINK"; };
-  stream.onerror = () => { $("#connection-label").textContent = "RECONNECTING"; };
+  stream.onopen = () => setConnectionStatus("live");
+  stream.onerror = () => setConnectionStatus("reconnecting");
   ["run_started", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
 };
 
@@ -356,6 +461,8 @@ const tickClock = () => {
 
 tickClock();
 window.setInterval(tickClock, 1_000);
+selectView(state.view);
+syncFilterControls();
 connectEvents();
-fetchState().catch((error) => toast(error.message, "error"));
+fetchState().catch(() => {});
 window.setInterval(() => fetchState().catch(() => {}), 10_000);

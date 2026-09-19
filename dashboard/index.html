@@ -32,11 +32,11 @@
 
         <div class="sidebar-label sidebar-label-spaced">Sources</div>
         <div class="source-stack">
-          <div class="source-line"><span class="source-glyph email">@</span><span>Gmail + Outlook</span><b id="side-email-count">0</b></div>
-          <div class="source-line"><span class="source-glyph moodle">M</span><span>Moodle · AB</span><b id="side-moodle-count">0</b></div>
-          <div class="source-line"><span class="source-glyph work">⌘</span><span>Work signals</span><b id="side-work-count">0</b></div>
-          <div class="source-line"><span class="source-glyph news">✦</span><span>Daily news</span><b id="side-news-count">0</b></div>
-          <div class="source-line"><span class="source-glyph edstem">E</span><span>Ed Lessons</span><b id="side-edstem-count">0</b></div>
+          <button class="source-line" data-filter="email" type="button" aria-label="Filter to inbox signals"><span class="source-glyph email">@</span><span>Gmail + Outlook</span><b id="side-email-count">0</b></button>
+          <button class="source-line" data-filter="moodle" type="button" aria-label="Filter to Moodle signals"><span class="source-glyph moodle">M</span><span>Moodle · AB</span><b id="side-moodle-count">0</b></button>
+          <button class="source-line" data-filter="work" type="button" aria-label="Filter to work signals"><span class="source-glyph work">⌘</span><span>Work signals</span><b id="side-work-count">0</b></button>
+          <button class="source-line" data-filter="news" type="button" aria-label="Filter to daily news"><span class="source-glyph news">✦</span><span>Daily news</span><b id="side-news-count">0</b></button>
+          <button class="source-line" data-filter="edstem" type="button" aria-label="Filter to Ed Lessons"><span class="source-glyph edstem">E</span><span>Ed Lessons</span><b id="side-edstem-count">0</b></button>
         </div>
 
         <div class="sidebar-spacer"></div>
@@ -51,8 +51,8 @@
         <header class="topbar">
           <div class="crumbs"><span class="crumb-muted">MORNING AGENT</span><span class="crumb-slash">/</span><span id="crumb-view">CONTROL ROOM</span></div>
           <div class="topbar-actions">
-            <div class="connection-state"><span class="live-dot"></span><span id="connection-label">LIVE LINK</span></div>
-            <button class="run-button" id="run-button" type="button"><span class="run-icon">↻</span><span>Run pulse</span></button>
+            <div class="connection-state" role="status" aria-live="polite"><span class="live-dot"></span><span id="connection-label">CONNECTING</span></div>
+            <button class="run-button" id="run-button" type="button" aria-describedby="pulse-label"><span class="run-icon">↻</span><span>Run pulse</span></button>
           </div>
         </header>
 
@@ -121,7 +121,7 @@
           </div>
 
           <article class="panel stream-panel">
-            <div class="panel-header stream-header"><div><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2></div><label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" autocomplete="off" /></label></div>
+              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2><span class="stream-result-count" id="stream-result-count">0 signals</span></div><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div>
             <div class="stream-table-head"><span>Signal</span><span>Source</span><span>When</span><span>State</span></div>
             <div class="stream-table" id="stream-table"></div>
           </article>
@@ -129,7 +129,7 @@
       </main>
     </div>
 
-    <dialog class="detail-dialog" id="detail-dialog">
+    <dialog class="detail-dialog" id="detail-dialog" aria-labelledby="detail-title">
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>

@@ -287,7 +287,7 @@ const renderHeader = () => {
       : state.data?.metrics?.total
         ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} stored items · run again for fresh data`
         : "Waiting for the first run";
-  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "local state" : "offline";
+  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "saved locally" : "offline";
   const button = $("#run-button");
   button.disabled = run.active;
   button.classList.toggle("is-loading", run.active);
@@ -765,6 +765,7 @@ const selectView = (view) => {
     else button.removeAttribute("aria-current");
   });
   $("#crumb-view").textContent = control ? "Overview" : "All activity";
+  syncFilterControls();
 };
 
 $("#run-button").addEventListener("click", () => runPulse(false));
@@ -803,7 +804,7 @@ $("#stream-more").addEventListener("click", () => {
 });
 const syncFilterControls = () => {
   $$('[data-filter]').forEach((candidate) => {
-    const active = candidate.dataset.filter === state.filter;
+    const active = state.view === "everything" && candidate.dataset.filter === state.filter;
     candidate.classList.toggle("is-active", active);
     candidate.setAttribute("aria-pressed", active ? "true" : "false");
   });

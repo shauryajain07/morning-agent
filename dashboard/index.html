@@ -16,7 +16,7 @@
           <div class="brand-mark" aria-hidden="true"></div>
           <div>
             <div class="brand-name">Morning Agent</div>
-            <div class="brand-sub">Local<span>only</span></div>
+            <div class="brand-sub">Private<span>on this Mac</span></div>
           </div>
         </div>
 
@@ -43,9 +43,9 @@
         <div class="sidebar-spacer"></div>
         <div class="privacy-card">
           <div class="privacy-orb"><span></span></div>
-          <div><strong>Stored locally</strong><p>No cloud dashboard.</p></div>
+          <div><strong>Private by default</strong><p>Nothing leaves this Mac.</p></div>
         </div>
-        <div class="sidebar-footer"><span class="live-dot"></span><span>Local · ready</span></div>
+        <div class="sidebar-footer"><span class="live-dot"></span><span>Local service</span></div>
       </aside>
 
       <main class="workspace" id="workspace-main" aria-busy="true">
@@ -74,33 +74,33 @@
           </div>
 
           <div class="metric-grid" aria-label="Morning Agent metrics">
-            <article class="metric-card metric-link accent-cyan" data-view="everything" data-filter-target="all" role="button" tabindex="0" aria-label="Open all activity"><div class="metric-head"><span>All items</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>across connected sources</p></article>
-            <article class="metric-card metric-link accent-lime" data-view="everything" data-filter-target="email" role="button" tabindex="0" aria-label="Open inbox"><div class="metric-head"><span>Inbox</span><span class="metric-spark">↗</span></div><strong id="metric-email">—</strong><p><span id="metric-unread">—</span> unread messages</p></article>
-            <article class="metric-card metric-link accent-violet" data-view="everything" data-filter-target="courses" role="button" tabindex="0" aria-label="Open coursework"><div class="metric-head"><span>Courses</span><span class="metric-spark">↗</span></div><strong id="metric-moodle">—</strong><p><span id="metric-course-count">Loading courses</span> · Moodle + Ed Lessons</p></article>
-            <article class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" role="button" tabindex="0" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>items waiting for you</p></article>
+            <article class="metric-card metric-link accent-cyan" data-view="everything" data-filter-target="all" role="button" tabindex="0" aria-label="Open all activity"><div class="metric-head"><span>Everything</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>tracked locally</p></article>
+            <article class="metric-card metric-link accent-lime" data-view="everything" data-filter-target="email" role="button" tabindex="0" aria-label="Open inbox"><div class="metric-head"><span>Inbox</span><span class="metric-spark">↗</span></div><strong id="metric-email">—</strong><p><span id="metric-unread">—</span> unread</p></article>
+            <article class="metric-card metric-link accent-violet" data-view="everything" data-filter-target="courses" role="button" tabindex="0" aria-label="Open coursework"><div class="metric-head"><span>Courses</span><span class="metric-spark">↗</span></div><strong id="metric-moodle">—</strong><p><span id="metric-course-count">Loading courses</span> across Moodle + Ed</p></article>
+            <article class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" role="button" tabindex="0" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>decisions to check</p></article>
+          </div>
+
+          <div class="dashboard-grid dashboard-grid-bottom">
+            <article class="panel activity-panel">
+              <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">What changed</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
+              <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
+            </article>
+            <article class="panel next-panel">
+              <div class="panel-header"><div><span class="panel-kicker">Next up</span><h2>Deadlines</h2></div><button class="text-button" data-deadline-view type="button">View all ↗</button></div>
+              <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
+            </article>
           </div>
 
           <div class="dashboard-grid dashboard-grid-top">
             <article class="panel pipeline-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Morning run</span><h2>What happened on the last run</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
+              <div class="panel-header"><div><span class="panel-kicker">Run history</span><h2>Last collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
               <div class="pipeline" id="pipeline" aria-label="Morning Agent pipeline"></div>
               <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
             </article>
 
             <article class="panel review-panel">
-              <div class="panel-header"><div><span class="panel-kicker warm">Needs review</span><h2>Decisions to check</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue">—</span></div>
+              <div class="panel-header"><div><span class="panel-kicker warm">Human check</span><h2>Review queue</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue">—</span></div>
               <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
-            </article>
-          </div>
-
-          <div class="dashboard-grid dashboard-grid-bottom">
-            <article class="panel activity-panel">
-              <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">What changed</h2></div><span class="tiny-live" id="activity-status">local state</span></div>
-              <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
-            </article>
-            <article class="panel next-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Upcoming</span><h2>Upcoming deadlines</h2></div><button class="text-button" data-deadline-view type="button">View all deadlines ↗</button></div>
-              <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
             </article>
           </div>
         </section>
@@ -145,6 +145,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-6"></script>
+    <script type="module" src="/app.js?rev=20260919-9"></script>
   </body>
 </html>

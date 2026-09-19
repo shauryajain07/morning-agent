@@ -1195,6 +1195,8 @@ window.setInterval(tickClock, 1_000);
 selectView(state.view);
 syncFilterControls();
 syncFilterScrollHint();
+renderHeader();
+renderPipeline();
 connectEvents();
 fetchState().catch(() => {});
 window.setInterval(() => fetchState().catch(() => {}), 10_000);

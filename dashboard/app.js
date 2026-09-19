@@ -110,7 +110,7 @@ const toast = (message, type = "") => {
 const setConnectionStatus = (status) => {
   connectionStatus = status;
   const label = $("#connection-label");
-  if (label) label.textContent = status === "live" ? "LIVE LINK" : status === "reconnecting" ? "RECONNECTING" : "CONNECTING";
+  if (label) label.textContent = status === "live" ? "Connected" : status === "reconnecting" ? "Reconnecting" : "Connecting";
   $(".connection-state")?.classList.toggle("is-reconnecting", status === "reconnecting");
 };
 
@@ -144,7 +144,7 @@ const renderMetrics = () => {
   $("#side-work-count").textContent = metrics.work ?? 0;
   $("#side-news-count").textContent = metrics.news ?? 0;
   $("#side-edstem-count").textContent = metrics.edstem ?? 0;
-  $("#everything-count").textContent = `${metrics.total ?? 0} SIGNALS`;
+  $("#everything-count").textContent = `${metrics.total ?? 0} items`;
   $("#donut-total").textContent = metrics.total ?? 0;
   const courses = new Set((state.data?.items ?? []).map(courseInfo).filter(Boolean).map((course) => course.key));
   $("#metric-course-count").textContent = `${courses.size} course${courses.size === 1 ? "" : "s"}`;
@@ -152,30 +152,30 @@ const renderMetrics = () => {
 
 const renderHeader = () => {
   const run = state.data?.run ?? { active: false };
-  const label = run.active ? "PROCESSING" : run.error ? "NEEDS ATTENTION" : run.completedAt ? "LAST PULSE COMPLETE" : "STANDING BY";
+  const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
-  $("#pipeline-status").textContent = run.active ? "RUNNING" : run.error ? "ERROR" : "IDLE";
+  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", run.active);
   $("#status-caption").textContent = run.active
-    ? "Jev is evaluating your latest signals. Watch the pipeline move in real time."
+    ? "Checking your latest sources."
     : run.error
-      ? `The last pulse stopped: ${run.error}`
+      ? `The last run stopped: ${run.error}`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} signals are in view. Review the calls that need your judgment.`
-        : "Your sources are quiet. Run a pulse to bring the whole day into focus.";
+        ? `${state.data.metrics.total} items are in view. Check anything that needs your attention.`
+        : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
-    ? `Live run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
+    ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
-      ? `Last pulse ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`
+      ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} stored signals · waiting for a fresh pulse`
-        : "Waiting for the next pulse";
+        ? `${state.data.metrics.total} stored items · ready for another run`
+        : "Waiting for the first run";
   const button = $("#run-button");
   button.disabled = run.active;
   button.classList.toggle("is-loading", run.active);
   button.innerHTML = run.active
-    ? '<span class="run-icon">◌</span><span>Pulse running</span>'
-    : `<span class="run-icon">↻</span><span>${run.error ? "Retry pulse" : "Run pulse"}</span>`;
+    ? '<span class="run-icon">◌</span><span>Run in progress</span>'
+    : `<span class="run-icon">↻</span><span>${run.error ? "Retry run" : "Run now"}</span>`;
 };
 
 const renderPipeline = () => {
@@ -186,7 +186,7 @@ const renderPipeline = () => {
     const active = run.active && index === activeIndex;
     return `<div class="pipeline-node ${done ? "is-done" : ""} ${active ? "is-active" : ""}">
       <div class="pipeline-dot">${done ? "✓" : String(index + 1).padStart(2, "0")}</div>
-      <span class="pipeline-label">${escapeHtml(stage === "jev" ? "JEV DECISIONS" : stage.toUpperCase())}</span>
+      <span class="pipeline-label">${escapeHtml(stage === "jev" ? "Jev decisions" : humanize(stage))}</span>
     </div>`;
   }).join("");
 };
@@ -195,7 +195,7 @@ const renderReviewQueue = () => {
   const queue = state.data?.lowConfidence ?? [];
   $("#queue-count").textContent = queue.length;
   if (queue.length === 0) {
-    $("#review-list").innerHTML = '<div class="review-empty"><div><strong>Clear runway.</strong><p>No low-confidence decisions are waiting for you.</p></div></div>';
+    $("#review-list").innerHTML = '<div class="review-empty"><div><strong>Nothing to review.</strong><p>No low-confidence decisions are waiting for you.</p></div></div>';
     return;
   }
   $("#review-list").innerHTML = queue.slice(0, 5).map((entry) => {
@@ -204,8 +204,8 @@ const renderReviewQueue = () => {
     return `<article class="review-card">
       <div class="review-meta"><span>${escapeHtml(meta.label)} · ${escapeHtml(humanize(entry.decision.decision))}</span><span class="review-confidence">${percent}% confidence</span></div>
       <button class="review-title plain-button" data-open-item="${escapeHtml(entry.item.id)}" type="button">${escapeHtml(entry.item.title)}</button>
-      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Jev wants a human read.</div>
-      <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Accept signal</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss</button></div>
+      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Jev flagged this for a human check.</div>
+      <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Mark reviewed</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss</button></div>
     </article>`;
   }).join("");
 };
@@ -213,14 +213,14 @@ const renderReviewQueue = () => {
 const renderActivity = () => {
   const run = state.data?.run ?? { active: false };
   const fallback = run.error
-    ? { title: "Last pulse stopped", detail: run.error, tone: "coral", at: run.lastEventAt ?? new Date().toISOString() }
+    ? { title: "Last run stopped", detail: run.error, tone: "coral", at: run.lastEventAt ?? new Date().toISOString() }
     : run.active
-      ? { title: "Pulse in progress", detail: `${humanize(run.stage ?? "collect")} stage is active`, tone: "lime", at: run.lastEventAt ?? new Date().toISOString() }
-      : run.completedAt
-        ? { title: "Last pulse complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`, tone: "lime", at: run.completedAt }
+    ? { title: "Run in progress", detail: `${humanize(run.stage ?? "collect")} stage is active`, tone: "lime", at: run.lastEventAt ?? new Date().toISOString() }
+    : run.completedAt
+        ? { title: "Last run complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`, tone: "lime", at: run.completedAt }
         : state.data?.metrics?.total
-          ? { title: "Local state loaded", detail: `${state.data.metrics.total} signals ready · run a pulse for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
-          : { title: "Dashboard armed", detail: "Waiting for a pulse", tone: "neutral", at: new Date().toISOString() };
+          ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run again for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
+          : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : [fallback];
   $("#activity-list").innerHTML = events.map((event) => `<div class="activity-row"><span class="activity-pip ${escapeHtml(event.tone)}"></span><div><div class="activity-title">${escapeHtml(event.title)}</div><div class="activity-detail">${escapeHtml(event.detail)}</div></div><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span></div>`).join("");
 };
@@ -319,10 +319,10 @@ const renderStream = () => {
   const decisions = state.data?.decisions ?? [];
   const visibleItems = items.slice(0, state.streamLimit);
   const filterSuffix = state.query || state.course ? " · filtered" : "";
-  $("#stream-result-count").textContent = `${items.length} signal${items.length === 1 ? "" : "s"}${filterSuffix}`;
+  $("#stream-result-count").textContent = `${items.length} item${items.length === 1 ? "" : "s"}${filterSuffix}`;
   if (items.length === 0) {
-    $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No signals here yet.</strong><p>Run a pulse or loosen the filter to see more of your day.</p></div></div>';
-    $("#stream-pagination").textContent = "Showing 0 signals";
+    $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No items here yet.</strong><p>Run a check or loosen the filter to see more of your day.</p></div></div>';
+    $("#stream-pagination").textContent = "Showing 0 items";
     $("#stream-more").hidden = true;
     return;
   }
@@ -340,8 +340,8 @@ const renderStream = () => {
     return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
   $("#stream-pagination").textContent = items.length > visibleItems.length
-    ? `Showing ${visibleItems.length} of ${items.length} signals`
-    : `Showing all ${items.length} signal${items.length === 1 ? "" : "s"}`;
+    ? `Showing ${visibleItems.length} of ${items.length} items`
+    : `Showing all ${items.length} item${items.length === 1 ? "" : "s"}`;
   $("#stream-more").hidden = visibleItems.length >= items.length;
 };
 
@@ -381,7 +381,7 @@ const openItem = (itemId) => {
   const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
   const dialog = $("#detail-dialog");
   lastFocusedElement = document.activeElement;
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(item.content ?? "No content excerpt stored for this signal.")}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this signal.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(item.content ?? "No content excerpt stored for this item.")}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();
@@ -405,21 +405,21 @@ const handleEvent = (event) => {
   try { payload = JSON.parse(event.data); } catch { return; }
   if (payload.type === "run_started") {
     state.pipeline = {};
-    pushActivity("Pulse started", "Opening the local source graph", "cyan", payload.at);
+    pushActivity("Run started", "Checking the local sources", "cyan", payload.at);
   } else if (payload.type === "stage") {
     state.pipeline[payload.stage] = payload.status;
-    pushActivity(`${payload.label} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "Jev pipeline is moving" : "Signal passed to the next layer", payload.status === "started" ? "lime" : "cyan", payload.at);
+    pushActivity(`${payload.label} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "The local run is moving" : "Step complete", payload.status === "started" ? "lime" : "cyan", payload.at);
   } else if (payload.type === "items_collected") {
-    pushActivity("Signals collected", `${payload.count} items entered the local graph`, "cyan", payload.at);
+    pushActivity("Items collected", `${payload.count} items found`, "cyan", payload.at);
   } else if (payload.type === "decisions_completed") {
-    pushActivity("Jev finished", `${payload.count} typed decisions recorded`, "lime", payload.at);
+    pushActivity("Decisions recorded", `${payload.count} typed decisions saved`, "lime", payload.at);
   } else if (payload.type === "actions_completed") {
-    pushActivity("Policy checked", `${payload.count} action paths inspected`, "gold", payload.at);
+    pushActivity("Actions checked", `${payload.count} possible actions reviewed`, "gold", payload.at);
   } else if (payload.type === "run_completed") {
-    pushActivity("Pulse complete", `${payload.itemCount} items · ${payload.decisionCount} decisions`, "lime", payload.at);
+    pushActivity("Run complete", `${payload.itemCount} items · ${payload.decisionCount} decisions`, "lime", payload.at);
     fetchState().catch(() => {});
   } else if (payload.type === "run_failed") {
-    pushActivity("Pulse stopped", payload.error, "coral", payload.at);
+    pushActivity("Run stopped", payload.error, "coral", payload.at);
     toast(payload.error, "error");
     fetchState().catch(() => {});
   } else if (payload.type === "state_invalidated") {
@@ -433,14 +433,14 @@ const runPulse = async (mock = false) => {
   const button = $("#run-button");
   button.disabled = true;
   button.classList.add("is-loading");
-  button.innerHTML = '<span class="run-icon">◌</span><span>Starting pulse</span>';
+  button.innerHTML = '<span class="run-icon">◌</span><span>Starting run</span>';
   try {
     const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mock }) });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error ?? "Could not start pulse.");
-    toast(mock ? "Demo pulse started." : "Live pulse started.", "success");
+    if (!response.ok) throw new Error(payload.error ?? "Could not start run.");
+    toast(mock ? "Demo run started." : "Run started.", "success");
   } catch (error) {
-    toast(error instanceof Error ? error.message : "Could not start pulse.", "error");
+    toast(error instanceof Error ? error.message : "Could not start run.", "error");
     renderHeader();
   }
 };
@@ -451,7 +451,7 @@ const resolveReview = async (button) => {
     const response = await fetch("/api/reviews", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ itemId: button.dataset.reviewItem, decision: button.dataset.reviewDecision, status: button.dataset.reviewStatus }) });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error ?? "Could not save review.");
-    toast(button.dataset.reviewStatus === "approved" ? "Signal accepted and marked reviewed." : "Signal dismissed from the queue.", "success");
+    toast(button.dataset.reviewStatus === "approved" ? "Item marked reviewed." : "Item dismissed from the queue.", "success");
     await fetchState();
   } catch (error) {
     button.disabled = false;
@@ -471,7 +471,7 @@ const selectView = (view) => {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
-  $("#crumb-view").textContent = control ? "CONTROL ROOM" : "EVERYTHING";
+  $("#crumb-view").textContent = control ? "Overview" : "All activity";
 };
 
 $$('[data-view]').forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
@@ -540,7 +540,7 @@ const connectEvents = () => {
 
 const tickClock = () => {
   const now = new Date();
-  $("#current-day").textContent = new Intl.DateTimeFormat("en-HK", { weekday: "long", day: "numeric", month: "long" }).format(now).toUpperCase();
+  $("#current-day").textContent = new Intl.DateTimeFormat("en-HK", { weekday: "long", day: "numeric", month: "long" }).format(now);
   $("#current-time").textContent = new Intl.DateTimeFormat("en-HK", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(now);
 };
 

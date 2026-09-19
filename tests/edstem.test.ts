@@ -73,7 +73,7 @@ describe("EdStem browser lesson adapter", () => {
       ],
     };
 
-    const items = extractEdStemLessonItems([snapshot], now);
+    const items = extractEdStemLessonItems([snapshot], now, 24, new Map([["146267", "MATH1851"]]));
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       source: "edstem",
@@ -83,6 +83,7 @@ describe("EdStem browser lesson adapter", () => {
         kind: "lesson",
         platform: "edstem",
         courseId: "146267",
+        courseLabel: "MATH1851",
         lessonId: "90210",
         resourceCount: 1,
       },

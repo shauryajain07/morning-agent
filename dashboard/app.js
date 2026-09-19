@@ -76,7 +76,10 @@ const courseInfo = (item) => {
   }
   if (typeof metadata.courseId === "string" && metadata.courseId.trim().length > 0) {
     const courseId = metadata.courseId.trim();
-    return { key: `course-id:${courseId.toLowerCase()}`, label: item.source === "edstem" ? `Ed ${courseId}` : `Course ${courseId}` };
+    const courseLabel = typeof metadata.courseLabel === "string" && metadata.courseLabel.trim().length > 0
+      ? metadata.courseLabel.trim()
+      : item.source === "edstem" ? `Ed ${courseId}` : `Course ${courseId}`;
+    return { key: `course-id:${item.source}:${courseId.toLowerCase()}`, label: courseLabel };
   }
   return null;
 };

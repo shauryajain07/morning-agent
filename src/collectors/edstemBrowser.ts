@@ -341,6 +341,45 @@ const isLessonIndexPath = (value: string): boolean => {
 
 const hasLessonRoute = (value: string): boolean => lessonRoute(value) !== undefined;
 
+const isGenericCourseLabel = (value: string): boolean =>
+  /^(?:home|course|courses|discussion|lessons?|resources?|assessments?|announcements?|ed\s*discussion|edstem)$/iu.test(value);
+
+const courseRootLabel = (value: string): string | undefined => {
+  const segments = pathSegments(value);
+  const courseIndex = segments.findIndex((segment) => segment.toLowerCase() === "courses");
+  if (courseIndex < 0 || segments.length !== courseIndex + 2) return undefined;
+  return courseRoute(value)?.courseId;
+};
+
+const courseLabelFromLink = (link: EdStemLinkSnapshot): string | undefined => {
+  const label = clean(link.text || link.ariaLabel || link.title);
+  if (label.length === 0 || isGenericCourseLabel(label)) return undefined;
+  return label.slice(0, 160);
+};
+
+const courseLabelFromSnapshot = (snapshot: EdStemPageSnapshot): { courseId: string; label: string } | undefined => {
+  const courseId = courseRootLabel(snapshot.url);
+  if (courseId === undefined) return undefined;
+  const candidates = `${snapshot.headingText}|${snapshot.title}`
+    .split("|")
+    .map(clean)
+    .filter((value) => value.length > 0 && !isGenericCourseLabel(value) && value !== courseId);
+  const label = candidates[0];
+  return label === undefined ? undefined : { courseId, label: label.slice(0, 160) };
+};
+
+const rememberCourseLabels = (snapshot: EdStemPageSnapshot, labels: Map<string, string>): void => {
+  const snapshotLabel = courseLabelFromSnapshot(snapshot);
+  if (snapshotLabel !== undefined && !labels.has(snapshotLabel.courseId)) {
+    labels.set(snapshotLabel.courseId, snapshotLabel.label);
+  }
+  for (const link of snapshot.links) {
+    const courseId = courseRootLabel(link.href);
+    const label = courseId === undefined ? undefined : courseLabelFromLink(link);
+    if (courseId !== undefined && label !== undefined && !labels.has(courseId)) labels.set(courseId, label);
+  }
+};
+
 const matchesCourseFilter = (value: string, filters: readonly string[]): boolean => {
   if (filters.length === 0) return true;
   const text = value.toLowerCase();
@@ -476,6 +515,7 @@ export const extractEdStemLessonItems = (
   snapshots: readonly EdStemPageSnapshot[],
   now = new Date(),
   lookbackHours = defaultLookbackHours,
+  courseLabels: ReadonlyMap<string, string> = new Map(),
 ): AgentItem[] => {
   const cutoff = now.getTime() - lookbackHours * 60 * 60 * 1_000;
   const latestAllowed = now.getTime() + 5 * 60 * 1_000;
@@ -505,6 +545,7 @@ export const extractEdStemLessonItems = (
         kind: "lesson",
         platform: "edstem",
         courseId: route.courseId,
+        ...(courseLabels.get(route.courseId) === undefined ? {} : { courseLabel: courseLabels.get(route.courseId) }),
         lessonId: route.lessonId,
         contentHash: fingerprint,
         resourceCount: resources.length,
@@ -534,6 +575,7 @@ export const collectEdStemLessonItemsFromBrowser = async (
 ): Promise<AgentItem[]> => {
   const session = new EdStemBrowserSession(options);
   const snapshots: EdStemPageSnapshot[] = [];
+  const courseLabels = new Map<string, string>();
   const visited = new Set<string>();
   const maxCoursePages = options.maxCoursePages ?? defaultMaxCoursePages;
   const maxLessonPages = options.maxLessonPages ?? defaultMaxLessonPages;
@@ -544,6 +586,7 @@ export const collectEdStemLessonItemsFromBrowser = async (
     visited.add(canonical);
     const snapshot = await session.goto(canonical);
     snapshots.push(snapshot);
+    rememberCourseLabels(snapshot, courseLabels);
     return snapshot;
   };
 
@@ -582,7 +625,7 @@ export const collectEdStemLessonItemsFromBrowser = async (
     );
     for (const lessonUrl of lateLessonUrls.slice(0, maxLessonPages)) await visit(lessonUrl);
 
-    return extractEdStemLessonItems(snapshots, now, options.lookbackHours ?? defaultLookbackHours);
+    return extractEdStemLessonItems(snapshots, now, options.lookbackHours ?? defaultLookbackHours, courseLabels);
   } finally {
     await session.close();
   }

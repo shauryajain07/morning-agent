@@ -1065,7 +1065,8 @@ const selectView = (view) => {
 };
 
 const revealActivityStream = () => {
-  window.requestAnimationFrame(() => $("#stream-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  window.requestAnimationFrame(() => $("#stream-panel")?.scrollIntoView({ behavior, block: "start" }));
 };
 
 $("#run-button").addEventListener("click", () => runPulse(false));

@@ -153,4 +153,40 @@ describe("Moodle browser adapter", () => {
       "https://moodle.example/mod/folder/view.php?id=44",
     ]);
   });
+
+  it("prefers a nested pluginfile over its resource wrapper", () => {
+    const result = extractMoodleItems([
+      {
+        url: "https://moodle.example/course/view.php?id=10",
+        title: "MATH1851",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/mod/resource/view.php?id=42",
+            text: "Week 3 lecture",
+            context: "Week 3 lecture",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+      {
+        url: "https://moodle.example/mod/resource/view.php?id=42",
+        title: "Week 3 lecture",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/pluginfile.php/10/mod_resource/content/1/week3.pdf?forcedownload=1",
+            text: "Download week3.pdf",
+            context: "Download week3.pdf",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.courseFiles).toHaveLength(1);
+    expect(result.courseFiles[0]?.url).toContain("pluginfile.php");
+  });
 });

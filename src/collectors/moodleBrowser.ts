@@ -440,6 +440,16 @@ const pathFor = (href: string): string => {
   }
 };
 
+const moodleModuleId = (href: string): string | undefined => {
+  const path = pathFor(href);
+  if (!/\/mod\/(?:resource|folder)\//u.test(path)) return undefined;
+  try {
+    return new URL(href).searchParams.get("id") ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const isAnnouncementCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
@@ -529,6 +539,8 @@ const makeItem = (
     : undefined;
 
   if (kind === "course_file") {
+    const moduleId = moodleModuleId(snapshot.url) ?? moodleModuleId(href);
+    if (moduleId !== undefined) metadata.moduleId = moduleId;
     const filename = fileNameFor(link, title).slice(0, 240);
     metadata.filename = filename;
     const extension = extensionFor(`${filename} ${href}`);
@@ -570,6 +582,24 @@ export const extractMoodleItems = (
       const kind = target === announcements ? "announcement" : target === assignments ? "assignment" : "course_file";
       const item = makeItem(kind, snapshot, link, now);
       if (item !== undefined && !target.has(item.id)) target.set(item.id, item);
+    }
+  }
+
+  // A resource/folder wrapper and its pluginfile target describe the same Moodle module.
+  // Prefer the actual file URL when the bounded detail crawl found one.
+  const nestedModuleIds = new Set(
+    Array.from(courseFiles.values())
+      .filter((item) => pathFor(item.url ?? "").includes("/pluginfile.php"))
+      .map((item) => item.metadata.moduleId)
+      .filter((value): value is string => typeof value === "string"),
+  );
+  for (const [id, item] of courseFiles) {
+    if (
+      typeof item.metadata.moduleId === "string" &&
+      nestedModuleIds.has(item.metadata.moduleId) &&
+      /\/mod\/(?:resource|folder)\//u.test(pathFor(item.url ?? ""))
+    ) {
+      courseFiles.delete(id);
     }
   }
 

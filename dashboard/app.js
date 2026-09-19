@@ -1,4 +1,4 @@
-const validFilters = new Set(["all", "email", "work", "moodle", "news", "edstem"]);
+const validFilters = new Set(["all", "email", "work", "moodle", "news", "edstem", "files"]);
 const persistedFilter = window.localStorage.getItem("morning-agent:filter");
 const persistedCourse = window.localStorage.getItem("morning-agent:course") ?? "";
 
@@ -160,6 +160,7 @@ const renderMetrics = () => {
   $("#side-work-count").textContent = metrics.work ?? 0;
   $("#side-news-count").textContent = metrics.news ?? 0;
   $("#side-edstem-count").textContent = metrics.edstem ?? 0;
+  $("#side-downloads-count").textContent = metrics.downloads ?? 0;
   $("#everything-count").textContent = `${metrics.total ?? 0} items`;
   $("#donut-total").textContent = metrics.total ?? 0;
   const courses = new Set((state.data?.items ?? []).map(courseInfo).filter(Boolean).map((course) => course.key));
@@ -326,7 +327,8 @@ const filteredItems = () => {
       || (state.filter === "moodle" && item.source === "moodle")
       || (state.filter === "email" && item.source === "email")
       || (state.filter === "news" && item.source === "news")
-      || (state.filter === "edstem" && item.source === "edstem");
+      || (state.filter === "edstem" && item.source === "edstem")
+      || (state.filter === "files" && item.source === "downloads");
     const itemCourse = courseInfo(item);
     const matchesCourse = state.course === "" || itemCourse?.key === state.course;
     const haystack = `${item.title} ${item.content ?? ""} ${item.source} ${itemCourse?.label ?? ""}`.toLowerCase();

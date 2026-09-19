@@ -84,6 +84,23 @@ const effectiveRun = () => {
   };
 };
 
+const reconcileLiveRun = () => {
+  const serverRun = state.data?.run;
+  if (!state.liveRunActive || !serverRun || !serverRun.runId || serverRun.runId !== state.liveRunId) return;
+  if (!serverRun.active) {
+    state.liveRunActive = false;
+    state.liveStage = "";
+    state.pipeline = {};
+    return;
+  }
+  if (serverRun.stage) {
+    const activeIndex = stages.indexOf(serverRun.stage);
+    for (let index = 0; index < activeIndex; index += 1) state.pipeline[stages[index]] = "completed";
+    state.pipeline[serverRun.stage] ??= "started";
+    state.liveStage = serverRun.stage;
+  }
+};
+
 const courseInfo = (item) => {
   const metadata = item?.metadata ?? {};
   if (typeof metadata.course === "string" && metadata.course.trim().length > 0) {
@@ -141,6 +158,7 @@ const fetchState = async () => {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not read local agent state.");
     state.data = await response.json();
+    reconcileLiveRun();
     render();
   } catch (error) {
     if (state.data === null) toast(error instanceof Error ? error.message : "Could not read local agent state.", "error");

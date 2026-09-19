@@ -53,8 +53,8 @@ export const edStemOptionsFromEnvironment = (): EdStemCollectorOptions => {
     courses: splitList(nonEmptyEnvironmentValue("EDSTEM_COURSES")),
     courseUrls: splitList(nonEmptyEnvironmentValue("EDSTEM_COURSE_URLS")),
     lookbackHours: boundedIntegerEnvironmentValue("EDSTEM_LOOKBACK_HOURS", 1, 168, 24),
-    maxCoursePages: boundedIntegerEnvironmentValue("EDSTEM_MAX_COURSE_PAGES", 1, 100, 12),
-    maxLessonPages: boundedIntegerEnvironmentValue("EDSTEM_MAX_LESSON_PAGES", 1, 500, 100),
+    maxCoursePages: boundedIntegerEnvironmentValue("EDSTEM_MAX_COURSE_PAGES", 1, 500, 100),
+    maxLessonPages: boundedIntegerEnvironmentValue("EDSTEM_MAX_LESSON_PAGES", 1, 2_000, 500),
   };
 
   const profileDirectory = nonEmptyEnvironmentValue("EDSTEM_BROWSER_PROFILE");

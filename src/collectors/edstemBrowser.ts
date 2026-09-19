@@ -52,8 +52,8 @@ export class EdStemAuthenticationRequiredError extends Error {
 const defaultTimeoutMs = 15_000;
 const defaultLoginTimeoutMs = 5 * 60 * 1_000;
 const defaultLookbackHours = 24;
-const defaultMaxCoursePages = 12;
-const defaultMaxLessonPages = 100;
+const defaultMaxCoursePages = 100;
+const defaultMaxLessonPages = 500;
 const defaultProfileDirectory = join(process.cwd(), ".edstem-browser-profile");
 const allowedHostPattern = /(?:^|\.)edstem\.org$/iu;
 

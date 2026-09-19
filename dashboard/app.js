@@ -339,13 +339,14 @@ const renderHeader = () => {
   const run = effectiveRun();
   const latestObservation = latestObservedAt();
   const isStaleSnapshot = snapshotIsStale();
+  const isReconnecting = connectionStatus === "reconnecting";
   const hasRunHistory = Boolean(run.completedAt);
   const hasSnapshot = Boolean(state.data?.metrics?.total);
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
-  $("#pipeline-kicker").textContent = run.active ? "Live run" : hasRunHistory ? "Run history" : hasSnapshot ? "Local snapshot" : "Run history";
-  $("#pipeline-title").textContent = run.active ? "Collecting now" : hasRunHistory ? "Last collection" : hasSnapshot ? "Collection status" : "First collection";
-  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
+  $("#pipeline-kicker").textContent = run.active ? "Live run" : hasRunHistory ? "Last run" : hasSnapshot ? "Snapshot" : "Run status";
+  $("#pipeline-title").textContent = run.active ? "Collecting now" : hasRunHistory ? "Collection" : hasSnapshot ? "Saved activity" : "First run";
+  $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : isReconnecting ? "Offline" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", run.active);
   $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !run.active && !run.error);
   $("#status-caption").textContent = run.active
@@ -353,16 +354,16 @@ const renderHeader = () => {
     : run.error
       ? `The last run stopped: ${run.error}`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : ""}.`
+        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`
         : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : state.data?.metrics?.total
-        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} stored items · ${isStaleSnapshot ? "refresh recommended" : "run again for fresh data"}`
+        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} items · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`
         : "Waiting for the first run";
-  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "saved locally" : "offline";
+  $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
   const button = $("#run-button");
   button.disabled = run.active;
   button.classList.toggle("is-loading", run.active);
@@ -375,6 +376,7 @@ const renderPipeline = () => {
   const run = effectiveRun();
   const activeIndex = stages.indexOf(run.stage);
   const livePipeline = state.liveRunActive && Boolean(state.liveRunId);
+  const stageLabels = { collect: "Collect", normalize: "Clean", jev: "Decide", policy: "Safety", actions: "Actions", briefing: "Summary" };
   $("#pipeline").innerHTML = stages.map((stage, index) => {
     const liveStatus = state.pipeline[stage];
     const done = livePipeline
@@ -383,7 +385,7 @@ const renderPipeline = () => {
     const active = livePipeline ? liveStatus === "started" : run.active && index === activeIndex;
     return `<div class="pipeline-node ${done ? "is-done" : ""} ${active ? "is-active" : ""}">
       <div class="pipeline-dot">${done ? "✓" : String(index + 1).padStart(2, "0")}</div>
-      <span class="pipeline-label">${escapeHtml(stage === "jev" ? "Jev decisions" : humanize(stage))}</span>
+      <span class="pipeline-label">${escapeHtml(stageLabels[stage] ?? humanize(stage))}</span>
     </div>`;
   }).join("");
 };
@@ -402,7 +404,7 @@ const renderReviewQueue = () => {
     return `<article class="review-card">
       <div class="review-meta"><span>${escapeHtml(meta.label)} · ${escapeHtml(humanize(entry.decision.decision))}</span><span class="review-confidence">${percent}% confidence</span></div>
       <button class="review-title plain-button" data-open-item="${escapeHtml(entry.item.id)}" type="button">${escapeHtml(cleanTitle(entry.item.title))}</button>
-      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Jev flagged this for a human check.</div>
+      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Low confidence — check before acting.</div>
       <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Mark reviewed</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss</button></div>
     </article>`;
   }).join("");
@@ -521,15 +523,6 @@ const renderSourceVisual = () => {
   const total = sourceGroups.reduce((sum, group) => sum + group.count, 0);
   $("#donut-total").textContent = total;
   $("#source-scope").textContent = state.filter === "all" && state.course === "" && state.query === "" ? "all items" : "current view";
-  let cursor = 0;
-  const segments = sourceGroups.map((group) => {
-    const count = group.count;
-    const start = total === 0 ? 0 : cursor / total * 100;
-    cursor += count;
-    const end = total === 0 ? 0 : cursor / total * 100;
-    return `${group.color} ${start}% ${end}%`;
-  });
-  $("#source-donut").style.background = total === 0 ? "conic-gradient(rgba(255,255,255,.08) 0 100%)" : `conic-gradient(${segments.join(", ")})`;
   $("#source-bars").innerHTML = sourceGroups.map((group) => {
     const count = group.count;
     const width = total === 0 || count === 0 ? 0 : Math.max(4, count / total * 100);
@@ -544,11 +537,9 @@ const renderFocus = () => {
   const deadlines = (state.data?.deadlines ?? []).filter((deadline) => itemIds.has(deadline.id)).length;
   const humanReview = (state.data?.lowConfidence ?? []).filter((entry) => itemIds.has(entry.item.id)).length;
   const total = scopedItems.length;
-  const weighted = total === 0 ? 0 : Math.min(100, Math.round((unread + deadlines * 1.6 + humanReview * 2) / Math.max(1, total) * 100));
-  $("#focus-score").textContent = `${weighted}%`;
-  $("#focus-meter").setAttribute("aria-valuenow", String(weighted));
-  $("#focus-meter").setAttribute("aria-valuetext", `${weighted}% attention load`);
-  $("#focus-meter-fill").style.width = `${weighted}%`;
+  const signalCount = unread + deadlines + humanReview;
+  $("#focus-score").textContent = signalCount;
+  $("#focus-score").setAttribute("aria-label", `${signalCount} signals needing a look`);
   $("#focus-breakdown").innerHTML = [
     ["Unread mail", unread],
     ["Deadlines, 7 days", deadlines],
@@ -746,7 +737,7 @@ const openItem = (itemId) => {
   lastFocusedElement = document.activeElement;
   const dateLabel = itemDateLabel(item);
   const detailSource = [meta.label, dateLabel].filter(Boolean).join(" · ");
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(detailSource)}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(detailSource)}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();
@@ -802,7 +793,7 @@ const handleEvent = (event) => {
     state.liveStage = payload.stage ?? state.liveStage;
     state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
     state.pipeline[payload.stage] = payload.status;
-    const stageLabel = payload.stage === "jev" ? "Jev decisions" : humanize(payload.stage);
+    const stageLabel = payload.stage === "jev" ? "Decide" : humanize(payload.stage);
     pushActivity(`${stageLabel} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "The local run is moving" : "Step complete", payload.status === "started" ? "lime" : "cyan", payload.at);
   } else if (payload.type === "items_collected") {
     pushActivity("Items collected", `${payload.count} items found`, "cyan", payload.at);

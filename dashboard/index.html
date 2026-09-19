@@ -16,7 +16,7 @@
           <div class="brand-mark" aria-hidden="true"></div>
           <div>
             <div class="brand-name">Morning Agent</div>
-            <div class="brand-sub">Private<span>on this Mac</span></div>
+            <div class="brand-sub">Local only</div>
           </div>
         </div>
 
@@ -43,7 +43,7 @@
         <div class="sidebar-spacer"></div>
         <div class="privacy-card">
           <div class="privacy-orb"><span></span></div>
-          <div><strong>Private by default</strong><p>Collected data stays on this Mac.</p></div>
+          <div><strong>Private on this Mac</strong><p>No cloud sync.</p></div>
         </div>
         <div class="sidebar-footer"><span class="live-dot"></span><span>Local service</span></div>
       </aside>
@@ -66,7 +66,7 @@
         <section class="page-view" id="control-view" aria-labelledby="control-title">
           <div class="page-heading">
             <div>
-              <div class="eyebrow">Morning brief <span class="eyebrow-rule"></span><span id="pulse-label">Loading</span></div>
+              <div class="eyebrow">Local snapshot <span class="eyebrow-rule"></span><span id="pulse-label">Loading</span></div>
               <h1 id="control-title">Today</h1>
               <p class="lede" id="status-caption">Reading your local state…</p>
             </div>
@@ -74,10 +74,10 @@
           </div>
 
           <div class="metric-grid" aria-label="Morning Agent metrics">
-            <button class="metric-card metric-link accent-cyan" data-view="everything" data-filter-target="all" type="button" aria-label="Open all activity"><div class="metric-head"><span>Everything</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>tracked locally</p></button>
+            <button class="metric-card metric-link accent-cyan" data-view="everything" data-filter-target="all" type="button" aria-label="Open all activity"><div class="metric-head"><span>Items</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>saved here</p></button>
             <button class="metric-card metric-link accent-lime" data-view="everything" data-filter-target="email" type="button" aria-label="Open inbox"><div class="metric-head"><span>Inbox</span><span class="metric-spark">↗</span></div><strong id="metric-email">—</strong><p><span id="metric-unread">—</span> unread</p></button>
             <button class="metric-card metric-link accent-violet" data-view="everything" data-filter-target="courses" type="button" aria-label="Open coursework"><div class="metric-head"><span>Courses</span><span class="metric-spark">↗</span></div><strong id="metric-moodle">—</strong><p><span id="metric-course-count">Loading courses</span> across Moodle + Ed</p></button>
-            <button class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" type="button" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>decisions to check</p></button>
+            <button class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" type="button" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>waiting for your call</p></button>
           </div>
 
           <div class="dashboard-grid dashboard-grid-bottom">
@@ -93,13 +93,13 @@
 
           <div class="dashboard-grid dashboard-grid-top">
             <article class="panel pipeline-panel">
-              <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run history</span><h2 id="pipeline-title">Last collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
-              <div class="pipeline" id="pipeline" aria-label="Morning Agent pipeline"></div>
+              <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run status</span><h2 id="pipeline-title">Collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
+              <div class="pipeline" id="pipeline" aria-label="Collection stages"></div>
               <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
             </article>
 
             <article class="panel review-panel">
-              <div class="panel-header"><div><span class="panel-kicker warm">Human check</span><h2>Review queue</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue">—</span></div>
+              <div class="panel-header"><div><span class="panel-kicker warm">Needs your call</span><h2>Review</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue">—</span></div>
               <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
             </article>
           </div>
@@ -108,9 +108,9 @@
         <section class="page-view is-hidden" id="everything-view" aria-labelledby="everything-title">
           <div class="page-heading page-heading-tight">
             <div>
-              <div class="eyebrow">All activity <span class="eyebrow-rule"></span><span id="everything-count">Loading</span></div>
+              <div class="eyebrow">Local activity <span class="eyebrow-rule"></span><span id="everything-count">Loading</span></div>
               <h1 id="everything-title">All activity</h1>
-              <p class="lede">Local email, coursework, work, news, and file activity.</p>
+              <p class="lede">Email, coursework, work, news, and files saved here.</p>
             </div>
             <div class="view-toggle" role="group" aria-label="Everything filters">
               <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
@@ -127,8 +127,8 @@
           </div>
 
           <div class="overview-grid">
-            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">By source</span><h2>Source mix</h2></div><span class="panel-scope" id="source-scope">all items</span></div><div class="source-visual"><div class="source-donut" id="source-donut"><div><strong id="donut-total">—</strong><span>items</span></div></div><div class="source-bars" id="source-bars"></div></div></article>
-            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Attention</span><h2>Attention load</h2></div><span class="focus-score" id="focus-score">—</span></div><div class="focus-meter" id="focus-meter" role="progressbar" aria-label="Attention level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Loading attention level"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"><div class="loading-state">Reading attention signals…</div></div></article>
+            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">Sources</span><h2>What's here</h2></div><span class="panel-scope" id="source-scope">all items</span></div><div class="source-visual"><div class="source-total" id="source-total"><strong id="donut-total">—</strong><span>items</span></div><div class="source-bars" id="source-bars"></div></div></article>
+            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Needs a look</span><h2>Signals</h2></div><span class="focus-score"><strong id="focus-score">—</strong> signals</span></div><div class="focus-breakdown" id="focus-breakdown"><div class="loading-state">Reading attention signals…</div></div></article>
           </div>
 
           <article class="panel stream-panel">
@@ -145,6 +145,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-30"></script>
+    <script type="module" src="/app.js?rev=20260919-32"></script>
   </body>
 </html>

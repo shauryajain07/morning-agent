@@ -19,6 +19,7 @@ const state = {
 
 let connectionStatus = "connecting";
 let lastFocusedElement = null;
+let initialLoadErrorShown = false;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
 const sourceMeta = {
@@ -136,6 +137,39 @@ const confidence = (decision) => Math.round((decision?.output?.confidence ?? 0) 
 
 const errorMessage = (error, fallback) => error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
 
+const setWorkspaceBusy = (busy) => {
+  $("#workspace-main")?.setAttribute("aria-busy", busy ? "true" : "false");
+};
+
+const showDataBanner = (title, message) => {
+  const banner = $("#data-banner");
+  if (!banner) return;
+  $("#data-banner-title").textContent = title;
+  $("#data-banner-message").textContent = message;
+  banner.hidden = false;
+};
+
+const hideDataBanner = () => {
+  $("#data-banner").hidden = true;
+};
+
+const renderUnavailable = () => {
+  $("#pulse-label").textContent = "Unavailable";
+  $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
+  $("#pipeline-status").textContent = "Unavailable";
+  $("#pipeline-footnote").textContent = "Could not read local state.";
+  $("#review-list").innerHTML = '<div class="empty-state"><div><strong>Review queue unavailable.</strong><p>Reconnect to read pending decisions.</p></div></div>';
+  $("#activity-kicker").textContent = "Connection";
+  $("#activity-title").textContent = "Local state unavailable";
+  $("#activity-list").innerHTML = '<div class="empty-state"><div><strong>Nothing to show yet.</strong><p>The local state service did not respond.</p></div></div>';
+  $("#deadline-list").innerHTML = '<div class="empty-state"><div><strong>Upcoming dates unavailable.</strong><p>Reconnect to read your saved deadlines.</p></div></div>';
+  $("#focus-breakdown").innerHTML = '<div class="empty-state"><div><strong>Attention signals unavailable.</strong><p>Reconnect to calculate the current load.</p></div></div>';
+  $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>Local activity unavailable.</strong><p>Reconnect to browse your saved items.</p></div></div>';
+  $("#stream-result-count").textContent = "Unavailable";
+  $("#stream-pagination").textContent = "Unavailable";
+  renderPipeline();
+};
+
 const toast = (message, type = "") => {
   const element = document.createElement("div");
   element.className = `toast ${type}`;
@@ -147,7 +181,7 @@ const toast = (message, type = "") => {
 const setConnectionStatus = (status) => {
   connectionStatus = status;
   const label = $("#connection-label");
-  if (label) label.textContent = status === "live" ? "Connected" : status === "reconnecting" ? "Reconnecting" : "Connecting";
+  if (label) label.textContent = status === "live" ? "Connected" : status === "reconnecting" ? "Reconnecting" : state.data === null ? "Loading" : "Connecting";
   const connectionState = $(".connection-state");
   connectionState?.classList.toggle("is-live", status === "live");
   connectionState?.classList.toggle("is-reconnecting", status === "reconnecting");
@@ -161,16 +195,32 @@ const pushActivity = (title, detail, tone = "neutral", at = new Date().toISOStri
 };
 
 const fetchState = async () => {
+  const firstLoad = state.data === null;
+  if (firstLoad) setWorkspaceBusy(true);
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not read local agent state.");
     state.data = await response.json();
+    initialLoadErrorShown = false;
+    setWorkspaceBusy(false);
+    hideDataBanner();
     setConnectionStatus("live");
     reconcileLiveRun();
     render();
   } catch (error) {
     setConnectionStatus("reconnecting");
-    if (state.data === null) toast(errorMessage(error, "Could not read local agent state."), "error");
+    if (state.data === null) {
+      setWorkspaceBusy(false);
+      const message = errorMessage(error, "Could not read local agent state.");
+      showDataBanner("Local state unavailable", message);
+      renderUnavailable();
+      if (!initialLoadErrorShown) {
+        toast(message, "error");
+        initialLoadErrorShown = true;
+      }
+    } else {
+      showDataBanner("Connection interrupted", "Showing the last saved snapshot while the local service reconnects.");
+    }
     throw error;
   }
 };
@@ -674,6 +724,15 @@ const selectView = (view) => {
 
 $$('[data-view]').forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
 $("#run-button").addEventListener("click", () => runPulse(false));
+$("#data-retry").addEventListener("click", async () => {
+  const button = $("#data-retry");
+  button.disabled = true;
+  button.textContent = "Trying…";
+  showDataBanner("Reconnecting", "Trying to read the local state again.");
+  try { await fetchState(); } catch {}
+  button.disabled = false;
+  button.textContent = "Try again";
+});
 $("#search-input").addEventListener("input", (event) => {
   state.query = event.target.value.trim();
   state.streamLimit = 50;

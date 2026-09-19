@@ -48,53 +48,59 @@
         <div class="sidebar-footer"><span class="live-dot"></span><span>Local · ready</span></div>
       </aside>
 
-      <main class="workspace">
+      <main class="workspace" id="workspace-main" aria-busy="true">
         <header class="topbar">
           <div class="crumbs"><span class="crumb-muted">Morning Agent</span><span class="crumb-slash">/</span><span id="crumb-view">Overview</span></div>
           <div class="topbar-actions">
-            <div class="connection-state" role="status" aria-live="polite"><span class="live-dot"></span><span id="connection-label">Connecting</span></div>
+            <div class="connection-state" role="status" aria-live="polite"><span class="live-dot"></span><span id="connection-label">Loading</span></div>
             <button class="run-button" id="run-button" type="button" aria-describedby="pulse-label"><span class="run-icon">↻</span><span>Run now</span></button>
           </div>
         </header>
 
+        <div class="data-banner" id="data-banner" hidden role="alert">
+          <span class="data-banner-mark" aria-hidden="true">!</span>
+          <div><strong id="data-banner-title">Local state unavailable</strong><p id="data-banner-message">The dashboard could not read its local data.</p></div>
+          <button id="data-retry" type="button">Try again</button>
+        </div>
+
         <section class="page-view" id="control-view" aria-labelledby="control-title">
           <div class="page-heading">
             <div>
-              <div class="eyebrow">Overview <span class="eyebrow-rule"></span><span id="pulse-label">Ready</span></div>
+              <div class="eyebrow">Overview <span class="eyebrow-rule"></span><span id="pulse-label">Loading</span></div>
               <h1 id="control-title"><span id="greeting-prefix">Good morning,</span> <em>Shaurya.</em></h1>
-              <p class="lede" id="status-caption">A local summary of your inbox, courses, and next steps.</p>
+              <p class="lede" id="status-caption">Reading your local state…</p>
             </div>
             <div class="date-block"><span id="current-day">—</span><strong id="current-time">—</strong></div>
           </div>
 
           <div class="metric-grid" aria-label="Morning Agent metrics">
-            <article class="metric-card metric-link accent-cyan" data-view="everything" role="button" tabindex="0" aria-label="Open all activity"><div class="metric-head"><span>All items</span><span class="metric-spark">↗</span></div><strong id="metric-total">0</strong><p>across connected sources</p></article>
-            <article class="metric-card accent-lime"><div class="metric-head"><span>Inbox</span><span class="metric-spark">@</span></div><strong id="metric-email">0</strong><p><span id="metric-unread">0</span> unread messages</p></article>
-            <article class="metric-card accent-violet"><div class="metric-head"><span>Courses</span><span class="metric-spark">M</span></div><strong id="metric-moodle">0</strong><p><span id="metric-course-count">0 courses</span> · Moodle + Ed Lessons</p></article>
-            <article class="metric-card accent-coral"><div class="metric-head"><span>Review</span><span class="metric-spark">!</span></div><strong id="metric-review">0</strong><p>items waiting for you</p></article>
+            <article class="metric-card metric-link accent-cyan" data-view="everything" role="button" tabindex="0" aria-label="Open all activity"><div class="metric-head"><span>All items</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>across connected sources</p></article>
+            <article class="metric-card accent-lime"><div class="metric-head"><span>Inbox</span><span class="metric-spark">@</span></div><strong id="metric-email">—</strong><p><span id="metric-unread">—</span> unread messages</p></article>
+            <article class="metric-card accent-violet"><div class="metric-head"><span>Courses</span><span class="metric-spark">M</span></div><strong id="metric-moodle">—</strong><p><span id="metric-course-count">Loading courses</span> · Moodle + Ed Lessons</p></article>
+            <article class="metric-card accent-coral"><div class="metric-head"><span>Review</span><span class="metric-spark">!</span></div><strong id="metric-review">—</strong><p>items waiting for you</p></article>
           </div>
 
           <div class="dashboard-grid dashboard-grid-top">
             <article class="panel pipeline-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Morning run</span><h2>What happened on the last run</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Idle</span></div>
+              <div class="panel-header"><div><span class="panel-kicker">Morning run</span><h2>What happened on the last run</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
               <div class="pipeline" id="pipeline" aria-label="Morning Agent pipeline"></div>
-              <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Waiting for the first run</span></div>
+              <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
             </article>
 
             <article class="panel review-panel">
-              <div class="panel-header"><div><span class="panel-kicker warm">Needs review</span><h2>Decisions to check</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="0 items to review">0</span></div>
-              <div class="review-list" id="review-list"></div>
+              <div class="panel-header"><div><span class="panel-kicker warm">Needs review</span><h2>Decisions to check</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue">—</span></div>
+              <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
             </article>
           </div>
 
           <div class="dashboard-grid dashboard-grid-bottom">
             <article class="panel activity-panel">
               <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">What changed</h2></div><span class="tiny-live" id="activity-status">local state</span></div>
-              <div class="activity-list" id="activity-list" aria-live="polite"></div>
+              <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
             </article>
             <article class="panel next-panel">
               <div class="panel-header"><div><span class="panel-kicker">Upcoming</span><h2>Dates to keep in mind</h2></div><button class="text-button" data-deadline-view type="button">View all deadlines ↗</button></div>
-              <div class="deadline-list" id="deadline-list"></div>
+              <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
             </article>
           </div>
         </section>
@@ -102,7 +108,7 @@
         <section class="page-view is-hidden" id="everything-view" aria-labelledby="everything-title">
           <div class="page-heading page-heading-tight">
             <div>
-              <div class="eyebrow">All activity <span class="eyebrow-rule"></span><span id="everything-count">0 items</span></div>
+              <div class="eyebrow">All activity <span class="eyebrow-rule"></span><span id="everything-count">Loading</span></div>
               <h1 id="everything-title">Everything in <em>one place.</em></h1>
               <p class="lede">Browse local messages, coursework, work items, news, and files.</p>
             </div>
@@ -119,15 +125,15 @@
           </div>
 
           <div class="overview-grid">
-            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">By source</span><h2>Where the items came from</h2></div></div><div class="source-visual"><div class="source-donut" id="source-donut"><div><strong id="donut-total">0</strong><span>items</span></div></div><div class="source-bars" id="source-bars"></div></div></article>
-            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Attention</span><h2>What may need your time</h2></div><span class="focus-score" id="focus-score">0%</span></div><div class="focus-meter" id="focus-meter" role="progressbar" aria-label="Attention level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 percent attention load"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"></div></article>
+            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">By source</span><h2>Where the items came from</h2></div></div><div class="source-visual"><div class="source-donut" id="source-donut"><div><strong id="donut-total">—</strong><span>items</span></div></div><div class="source-bars" id="source-bars"></div></div></article>
+            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Attention</span><h2>What may need your time</h2></div><span class="focus-score" id="focus-score">—</span></div><div class="focus-meter" id="focus-meter" role="progressbar" aria-label="Attention level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Loading attention level"><span id="focus-meter-fill"></span></div><div class="focus-breakdown" id="focus-breakdown"><div class="loading-state">Reading attention signals…</div></div></article>
           </div>
 
           <article class="panel stream-panel">
-              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">Activity</span><h2>All items</h2><span class="stream-result-count" id="stream-result-count" aria-live="polite">0 items</span></div><div class="stream-controls"><label class="course-filter"><span>Course</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search messages, files, work…" aria-label="Search all items" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
+              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">Activity</span><h2>All items</h2><span class="stream-result-count" id="stream-result-count" aria-live="polite">Loading</span></div><div class="stream-controls"><label class="course-filter"><span>Course</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search messages, files, work…" aria-label="Search all items" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
             <div class="stream-table-head"><span>Item</span><span>Source</span><span>When</span><span>Status</span></div>
-            <div class="stream-table" id="stream-table"></div>
-            <div class="stream-footer" id="stream-footer"><span id="stream-pagination">Showing 0 items</span><button class="load-more" id="stream-more" type="button" hidden>Load more</button></div>
+            <div class="stream-table" id="stream-table"><div class="loading-state" role="status">Reading local activity…</div></div>
+            <div class="stream-footer" id="stream-footer"><span id="stream-pagination">Loading</span><button class="load-more" id="stream-more" type="button" hidden>Load more</button></div>
           </article>
         </section>
       </main>

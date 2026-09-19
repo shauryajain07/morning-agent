@@ -283,6 +283,7 @@ const renderUnavailable = () => {
   $("#review-list").innerHTML = '<div class="empty-state"><div><strong>Review queue unavailable.</strong><p>Reconnect to read pending decisions.</p></div></div>';
   $("#activity-kicker").textContent = "Connection";
   $("#activity-title").textContent = "Local state unavailable";
+  $("#activity-status").textContent = "unavailable";
   $("#activity-list").innerHTML = '<div class="empty-state"><div><strong>Nothing to show yet.</strong><p>The local state service did not respond.</p></div></div>';
   $("#deadline-list").innerHTML = '<div class="empty-state"><div><strong>Upcoming dates unavailable.</strong><p>Reconnect to read your saved deadlines.</p></div></div>';
   $("#focus-breakdown").innerHTML = '<div class="empty-state"><div><strong>Attention signals unavailable.</strong><p>Reconnect to calculate the current load.</p></div></div>';

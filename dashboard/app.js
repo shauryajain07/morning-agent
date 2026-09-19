@@ -28,7 +28,6 @@ const state = {
 
 let connectionStatus = "connecting";
 let lastFocusedElement = null;
-let initialLoadErrorShown = false;
 let stateFetchInFlight = null;
 let searchRenderTimer = 0;
 let runStarting = false;
@@ -342,7 +341,6 @@ const fetchState = () => {
       if (!response.ok) throw new Error("Could not read local agent state.");
       state.data = await response.json();
       if (state.data.run?.active) clearRunStarting();
-      initialLoadErrorShown = false;
       setWorkspaceBusy(false);
       hideDataBanner();
       setConnectionStatus("live");
@@ -355,10 +353,6 @@ const fetchState = () => {
         const message = errorMessage(error, "Could not read local agent state.");
         showDataBanner("Local state unavailable", message);
         renderUnavailable();
-        if (!initialLoadErrorShown) {
-          toast(message, "error");
-          initialLoadErrorShown = true;
-        }
       } else {
         showDataBanner("Connection interrupted", "Showing the last saved snapshot while the local service reconnects.");
       }

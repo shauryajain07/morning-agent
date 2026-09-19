@@ -742,6 +742,12 @@ const closeDetail = () => {
   lastFocusedElement = null;
 };
 
+const reviewActionKey = (element) => {
+  const dataset = element?.dataset ?? {};
+  if (!dataset.reviewItem || !dataset.reviewDecision || !dataset.reviewStatus) return "";
+  return [dataset.reviewItem, dataset.reviewDecision, dataset.reviewStatus].join("\u0000");
+};
+
 const openItem = (itemId) => {
   const item = state.data?.items?.find((candidate) => candidate.id === itemId);
   if (!item) return;
@@ -776,6 +782,7 @@ const openItem = (itemId) => {
 const render = () => {
   const activeElement = document.activeElement;
   const focusedItemId = activeElement?.dataset?.openItem ?? "";
+  const focusedReviewKey = reviewActionKey(activeElement);
   const focusedContainerId = activeElement?.closest("#activity-list, #stream-table, #deadline-list, #review-list")?.id ?? "";
   renderMetrics();
   renderHeader();
@@ -791,6 +798,11 @@ const render = () => {
     const container = focusedContainerId === "" ? document : $("#" + focusedContainerId);
     const restored = Array.from(container?.querySelectorAll("[data-open-item]") ?? [])
       .find((candidate) => candidate.dataset.openItem === focusedItemId);
+    restored?.focus();
+  } else if (focusedReviewKey !== "") {
+    const container = focusedContainerId === "" ? document : $("#" + focusedContainerId);
+    const restored = Array.from(container?.querySelectorAll("[data-review-item]") ?? [])
+      .find((candidate) => reviewActionKey(candidate) === focusedReviewKey);
     restored?.focus();
   }
 };

@@ -357,7 +357,7 @@ const renderHeader = () => {
   const isStaleSnapshot = snapshotIsStale();
   const isReconnecting = connectionStatus === "reconnecting";
   const hasRunHistory = Boolean(run.completedAt);
-  const hasSnapshot = Boolean(state.data?.metrics?.total);
+  const hasSnapshot = state.data !== null;
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
   $("#pipeline-kicker").textContent = run.active ? "Live run" : hasRunHistory ? "Last run" : hasSnapshot ? "Snapshot" : "Run status";
@@ -369,14 +369,14 @@ const renderHeader = () => {
     ? "Checking your latest sources."
     : run.error
       ? `The last run stopped: ${run.error}`
-      : state.data?.metrics?.total
+      : hasSnapshot
         ? `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`
         : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
-      : state.data?.metrics?.total
+      : hasSnapshot
         ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`
         : "Waiting for the first run";
   $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
@@ -488,7 +488,7 @@ const renderActivity = () => {
     ? { title: "Run in progress", detail: `${humanize(run.stage ?? "collect")} stage is active`, tone: "lime", at: run.lastEventAt ?? new Date().toISOString() }
     : run.completedAt
         ? { title: "Last run complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`, tone: "lime", at: run.completedAt }
-        : state.data?.metrics?.total
+        : state.data !== null
           ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run again for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
           : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : priorities.length > 0 ? priorities : [fallback];

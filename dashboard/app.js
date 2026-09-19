@@ -167,7 +167,9 @@ const renderHeader = () => {
     ? `Live run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last pulse ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`
-      : "Waiting for the next pulse";
+      : state.data?.metrics?.total
+        ? `${state.data.metrics.total} stored signals · waiting for a fresh pulse`
+        : "Waiting for the next pulse";
   const button = $("#run-button");
   button.disabled = run.active;
   button.classList.toggle("is-loading", run.active);

@@ -86,4 +86,42 @@ describe("Moodle browser adapter", () => {
       kind: "course_file",
     });
   });
+
+  it("ignores navigation links that only mention assignments in surrounding text", () => {
+    const result = extractMoodleItems([
+      {
+        url: "https://moodle.example/my/",
+        title: "Dashboard",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/calendar/view.php",
+            text: "Go to calendar...",
+            context: "Assignment 1 is due — Go to calendar...",
+            title: "",
+            ariaLabel: "",
+          },
+          {
+            href: "https://moodle.example/mod/resource/view.php?id=99",
+            text: "Assignment 2 file",
+            context: "CCHU9078 Assignment 2 file",
+            title: "",
+            ariaLabel: "",
+          },
+          {
+            href: "https://moodle.example/mod/assign/view.php?id=100",
+            text: "ASSIGNMENT 1 is due",
+            context: "ENGG1330 — Due: 23 September 2026",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0]?.title).toContain("ASSIGNMENT 1");
+    expect(result.courseFiles).toHaveLength(1);
+    expect(result.courseFiles[0]?.metadata.kind).toBe("course_file");
+  });
 });

@@ -422,16 +422,20 @@ const isAnnouncementCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkS
 const isAssignmentCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
-  if (path.includes("/mod/assign/") || path.includes("/mod/quiz/") || path.includes("/mod/workshop/")) {
-    return true;
-  }
-  return !path.includes("/course/") && /assignment|assessment|quiz|exam|lab|submission/iu.test(text);
+  const courseFilePath =
+    path.includes("/mod/resource/") || path.includes("/mod/folder/") || path.includes("/pluginfile.php");
+  if (courseFilePath) return false;
+  const assignmentActivity =
+    path.includes("/mod/assign/") || path.includes("/mod/quiz/") || path.includes("/mod/workshop/");
+  const assignmentCue = /assignment|assessment|quiz|exam|lab|submission|due|deadline/iu.test(text);
+  return assignmentActivity ? assignmentCue : path.includes("/mod/") && assignmentCue;
 };
 
 const isCourseFileCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
-  if (path.includes("/mod/resource/") || path.includes("/mod/folder/")) return true;
+  const hasVisibleLabel = link.text.length > 0 || link.ariaLabel.length > 0 || link.title.length > 0;
+  if (path.includes("/mod/resource/") || path.includes("/mod/folder/")) return hasVisibleLabel;
   if (path.includes("/pluginfile.php")) {
     return (
       /\.(?:pdf|docx?|pptx?|xlsx?|zip|txt|csv|mp4|mov|png|jpe?g)(?:$|[?#])/iu.test(link.href) ||

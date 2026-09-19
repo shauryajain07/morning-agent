@@ -192,7 +192,17 @@ const courseInfo = (item) => {
   return null;
 };
 
-const itemDisplayTimestamp = (item) => item.createdAt ?? item.observedAt ?? "";
+const itemSourceTimestamp = (item) => item.createdAt
+  ?? item.metadata?.receivedAt
+  ?? item.metadata?.creationTime
+  ?? item.metadata?.modifiedTime
+  ?? "";
+const itemDisplayTimestamp = (item) => itemSourceTimestamp(item) || item.observedAt || "";
+const itemDateLabel = (item) => {
+  const sourceTimestamp = itemSourceTimestamp(item);
+  if (sourceTimestamp) return formatDate(sourceTimestamp);
+  return item.observedAt ? `Observed ${formatDate(item.observedAt)}` : "";
+};
 
 const humanize = (value) => String(value ?? "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
 
@@ -584,11 +594,17 @@ const filteredItems = () => {
     const haystack = `${item.title} ${item.content ?? ""} ${item.source} ${itemCourse?.label ?? ""}`.toLowerCase();
     return matchesFilter && matchesCourse && haystack.includes(state.query.toLowerCase());
   }).sort((left, right) => {
-    const leftTime = new Date(itemDisplayTimestamp(left)).getTime();
-    const rightTime = new Date(itemDisplayTimestamp(right)).getTime();
-    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) return rightTime - leftTime;
-    if (Number.isFinite(rightTime)) return 1;
-    if (Number.isFinite(leftTime)) return -1;
+    const leftSourceTime = new Date(itemSourceTimestamp(left)).getTime();
+    const rightSourceTime = new Date(itemSourceTimestamp(right)).getTime();
+    const leftHasSourceTime = Number.isFinite(leftSourceTime);
+    const rightHasSourceTime = Number.isFinite(rightSourceTime);
+    if (leftHasSourceTime && rightHasSourceTime) return rightSourceTime - leftSourceTime;
+    if (leftHasSourceTime !== rightHasSourceTime) return leftHasSourceTime ? -1 : 1;
+    const leftObservedTime = new Date(left.observedAt ?? "").getTime();
+    const rightObservedTime = new Date(right.observedAt ?? "").getTime();
+    if (Number.isFinite(leftObservedTime) && Number.isFinite(rightObservedTime)) return rightObservedTime - leftObservedTime;
+    if (Number.isFinite(rightObservedTime)) return 1;
+    if (Number.isFinite(leftObservedTime)) return -1;
     return left.id.localeCompare(right.id);
   });
 };
@@ -728,7 +744,9 @@ const openItem = (itemId) => {
   const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
   const dialog = $("#detail-dialog");
   lastFocusedElement = document.activeElement;
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  const dateLabel = itemDateLabel(item);
+  const detailSource = [meta.label, dateLabel].filter(Boolean).join(" · ");
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(detailSource)}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();

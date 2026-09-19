@@ -390,7 +390,11 @@ h1 em { color: var(--accent); font-style: normal; }
 .resource-link:hover { border-color: rgba(106, 169, 255, .45); background: var(--accent-soft); }
 .decision-stack { display: grid; gap: 8px; margin-top: 11px; }
 .decision-row { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; background: rgba(255, 255, 255, .035); }
-.decision-name { color: var(--muted); font-size: 11px; }
+.decision-name { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; }
+.decision-status { flex: 0 0 auto; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--dim); font-size: 9px; }
+.decision-status.is-reviewed { color: var(--lime); border-color: rgba(120, 199, 147, .3); background: rgba(120, 199, 147, .07); }
+.decision-status.is-dismissed { color: var(--dim); }
+.decision-status.is-pending { color: var(--gold); border-color: rgba(216, 173, 105, .3); background: rgba(216, 173, 105, .07); }
 .decision-answer { margin-top: 3px; color: var(--text); font-size: 12px; }
 .decision-meter { width: 85px; height: 5px; overflow: hidden; border-radius: 3px; background: rgba(255, 255, 255, .08); }
 .decision-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }

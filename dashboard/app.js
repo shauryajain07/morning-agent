@@ -753,7 +753,21 @@ const openItem = (itemId) => {
   lastFocusedElement = document.activeElement;
   const dateLabel = itemDateLabel(item);
   const detailSource = [meta.label, dateLabel].filter(Boolean).join(" · ");
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}" aria-hidden="true">${escapeHtml(meta.icon)}</span>${escapeHtml(detailSource)}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  const pendingReviewKeys = new Set((state.data?.lowConfidence ?? []).map((entry) => `${entry.item.id}:${entry.decision.decision}`));
+  const reviewByKey = new Map((state.data?.reviews ?? []).map((review) => [`${review.itemId}:${review.decision}`, review]));
+  const decisionRows = decisions.map((decision) => {
+    const review = reviewByKey.get(`${item.id}:${decision.decision}`);
+    const status = review?.status === "approved"
+      ? { label: "Reviewed", className: "is-reviewed" }
+      : review?.status === "dismissed"
+        ? { label: "Dismissed", className: "is-dismissed" }
+        : pendingReviewKeys.has(`${item.id}:${decision.decision}`)
+          ? { label: "Needs review", className: "is-pending" }
+          : null;
+    const statusMarkup = status === null ? "" : `<span class="decision-status ${status.className}">${status.label}</span>`;
+    return `<div class="decision-row"><div><div class="decision-name"><span>${escapeHtml(humanize(decision.decision))}</span>${statusMarkup}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`;
+  }).join("");
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}" aria-hidden="true">${escapeHtml(meta.icon)}</span>${escapeHtml(detailSource)}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisionRows}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();

@@ -283,15 +283,16 @@ const priorityItems = () => {
     if (decision.decision === "requiresAction" && output.actionRequired === true) {
       const urgency = output.urgency ?? "soon";
       const score = urgency === "today" ? 100 : urgency === "soon" ? 82 : urgency === "later" ? 55 : 50;
+      const urgencyLabel = urgency === "today" ? "needs attention today" : urgency === "later" ? "action suggested later" : "action suggested soon";
       addCandidate(
         item,
-        urgency === "today" ? "Needs attention today" : "Action suggested",
-        `${source(item.source).label} · ${decisionSummary(decision)}`,
+        item.title,
+        `${source(item.source).label} · ${urgencyLabel}`,
         urgency === "today" ? "coral" : "gold",
         score,
       );
     } else if (decision.decision === "importantEmail" && output.important === true && item.metadata?.unread === true) {
-      addCandidate(item, "Important inbox", `${source(item.source).label} · ${decisionSummary(decision)}`, "cyan", 70);
+      addCandidate(item, `${item.title}`, `${source(item.source).label} · important inbox`, "cyan", 70);
     }
   }
 
@@ -302,8 +303,8 @@ const priorityItems = () => {
     const score = 95 - Math.max(0, Math.min(20, hoursUntil / 24));
     addCandidate(
       item,
-      "Upcoming deadline",
-      `${source(deadline.source).label} · ${formatDate(deadline.deadline)} at ${formatTime(deadline.deadline)}`,
+      item.title,
+      `${source(deadline.source).label} · due ${formatDate(deadline.deadline)} at ${formatTime(deadline.deadline)}`,
       "coral",
       score,
     );
@@ -326,6 +327,7 @@ const renderActivity = () => {
           : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : priorities.length > 0 ? priorities : [fallback];
   $("#activity-kicker").textContent = priorities.length > 0 && state.events.length === 0 ? "Worth a look" : "Recent activity";
+  $("#activity-title").textContent = priorities.length > 0 && state.events.length === 0 ? "Worth your attention" : "What changed";
   $("#activity-list").innerHTML = events.map((event) => {
     const body = `<span class="activity-pip ${escapeHtml(event.tone)}"></span><span><span class="activity-title">${escapeHtml(event.title)}</span><span class="activity-detail">${escapeHtml(event.detail)}</span></span><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span>`;
     return event.itemId === undefined

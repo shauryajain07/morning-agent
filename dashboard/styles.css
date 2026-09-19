@@ -279,7 +279,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .activity-pip.cyan { background: var(--cyan); }
 .activity-pip.gold { background: var(--gold); }
 .activity-pip.coral { background: var(--coral); }
-.activity-title { display: block; color: var(--text); font-size: 12px; }
+.activity-title { display: -webkit-box; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .activity-detail { display: block; margin-top: 3px; color: var(--dim); font-size: 10px; }
 .activity-time { color: var(--dim); font-size: 10px; white-space: nowrap; }
 .deadline-list { padding: 0 20px 18px; }

@@ -370,14 +370,14 @@ const renderHeader = () => {
     : run.error
       ? `The last run stopped: ${run.error}`
       : state.data?.metrics?.total
-        ? `${state.data.metrics.total} items in view · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`
+        ? `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`
         : "Nothing has been collected yet. Run the first check when you are ready.";
   $("#pipeline-footnote").textContent = run.active
     ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : state.data?.metrics?.total
-        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} items · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`
+        ? `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`
         : "Waiting for the first run";
   $("#activity-status").textContent = run.active ? "updating" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
   const button = $("#run-button");

@@ -148,6 +148,8 @@ const courseInfo = (item) => {
   return null;
 };
 
+const itemDisplayTimestamp = (item) => item.createdAt ?? item.observedAt ?? "";
+
 const humanize = (value) => String(value ?? "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
 
 const decisionSummary = (decision) => {
@@ -534,6 +536,13 @@ const filteredItems = () => {
     const matchesCourse = state.course === "" || itemCourse?.key === state.course;
     const haystack = `${item.title} ${item.content ?? ""} ${item.source} ${itemCourse?.label ?? ""}`.toLowerCase();
     return matchesFilter && matchesCourse && haystack.includes(state.query.toLowerCase());
+  }).sort((left, right) => {
+    const leftTime = new Date(itemDisplayTimestamp(left)).getTime();
+    const rightTime = new Date(itemDisplayTimestamp(right)).getTime();
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) return rightTime - leftTime;
+    if (Number.isFinite(rightTime)) return 1;
+    if (Number.isFinite(leftTime)) return -1;
+    return left.id.localeCompare(right.id);
   });
 };
 
@@ -591,7 +600,7 @@ const renderStream = () => {
     const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";
     const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
     const subtitle = [itemCourse?.label, cleanDisplayText(item.content ?? "")].filter(Boolean).join(" · ").slice(0, 120);
-    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
+    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(itemDisplayTimestamp(item)))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
   $("#stream-pagination").textContent = items.length > visibleItems.length
     ? `Showing ${visibleItems.length} of ${items.length} items`

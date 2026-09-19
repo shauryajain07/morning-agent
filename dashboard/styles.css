@@ -83,6 +83,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, dialog:focus-vi
   transition: background .15s ease, color .15s ease;
 }
 .nav-item:hover { color: var(--text); background: rgba(255, 255, 255, .055); }
+.nav-item:disabled, .source-line:disabled, .filter-button:disabled, .metric-link:disabled { cursor: not-allowed; opacity: .5; }
 .nav-item.is-active { color: var(--text); background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .nav-icon { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; color: var(--dim); }
 .nav-item.is-active .nav-icon { color: var(--accent); background: var(--accent); }
@@ -224,6 +225,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .metric-card:last-child { border-right: 0; }
 .metric-link { cursor: pointer; text-align: left; }
 .metric-link:hover { background: rgba(255, 255, 255, .045); }
+.metric-link:disabled:hover { background: transparent; }
 .metric-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .metric-card::before { display: none; }
 .metric-card.accent-cyan, .metric-card.accent-lime, .metric-card.accent-violet, .metric-card.accent-coral { color: var(--muted); }

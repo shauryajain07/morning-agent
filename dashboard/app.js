@@ -241,6 +241,12 @@ const hideDataBanner = () => {
   $("#data-banner").hidden = true;
 };
 
+const setDataControlsDisabled = (disabled) => {
+  $$(".metric-link, .source-line, .filter-button, #course-filter, #search-input, #search-clear, #stream-more").forEach((control) => {
+    control.disabled = disabled;
+  });
+};
+
 const clearRunStarting = () => {
   runStarting = false;
   if (runStartTimer !== 0) {
@@ -266,6 +272,7 @@ const armRunStarting = () => {
 };
 
 const renderUnavailable = () => {
+  setDataControlsDisabled(true);
   $("#pulse-label").textContent = "Unavailable";
   $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
   $("#status-caption").classList.remove("is-stale");
@@ -279,10 +286,16 @@ const renderUnavailable = () => {
   $("#activity-list").innerHTML = '<div class="empty-state"><div><strong>Nothing to show yet.</strong><p>The local state service did not respond.</p></div></div>';
   $("#deadline-list").innerHTML = '<div class="empty-state"><div><strong>Upcoming dates unavailable.</strong><p>Reconnect to read your saved deadlines.</p></div></div>';
   $("#focus-breakdown").innerHTML = '<div class="empty-state"><div><strong>Attention signals unavailable.</strong><p>Reconnect to calculate the current load.</p></div></div>';
+  $("#everything-count").textContent = "Unavailable";
+  $("#source-scope").textContent = "unavailable";
+  $("#source-bars").innerHTML = '<div class="empty-state"><div><strong>Source mix unavailable.</strong><p>Reconnect to read the saved sources.</p></div></div>';
+  $("#focus-score").textContent = "—";
+  $("#focus-score").setAttribute("aria-label", "Attention signals unavailable");
+  $("#stream-title").textContent = "Local activity unavailable";
   $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>Local activity unavailable.</strong><p>Reconnect to browse your saved items.</p></div></div>';
   $("#stream-result-count").textContent = "Unavailable";
   $("#stream-pagination").textContent = "Unavailable";
-  $("#pipeline").innerHTML = '<div class="empty-state"><div><strong>Collection is unavailable.</strong><p>Reconnect to see the run stages.</p></div></div>';
+  $("#pipeline").innerHTML = '<div class="pipeline-message is-error"><strong>Collection unavailable.</strong><span>Reconnect to see the run stages.</span></div>';
   const button = $("#run-button");
   button.disabled = true;
   button.classList.remove("is-loading");
@@ -390,6 +403,7 @@ const renderHeader = () => {
   const isReconnecting = connectionStatus === "reconnecting";
   const hasRunHistory = Boolean(run.completedAt);
   const hasSnapshot = state.data !== null;
+  setDataControlsDisabled(!hasSnapshot);
   const label = runBusy ? "Processing" : run.error ? "Needs attention" : !hasSnapshot ? "Loading" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
   $("#pipeline-kicker").textContent = runBusy ? "Live run" : run.error ? "Last run" : !hasSnapshot ? "Connection" : hasRunHistory ? "Last run" : "Snapshot";

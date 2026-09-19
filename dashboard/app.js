@@ -1001,14 +1001,6 @@ document.addEventListener("click", (event) => {
 $("#detail-dialog").addEventListener("click", (event) => { if (event.target === $("#detail-dialog")) closeDetail(); });
 $("#detail-dialog").addEventListener("cancel", () => { window.setTimeout(closeDetail, 0); });
 document.addEventListener("keydown", (event) => {
-  const viewShortcut = event.target instanceof Element
-    ? event.target.closest('[data-view][role="button"]')
-    : null;
-  if (viewShortcut && (event.key === "Enter" || event.key === " ")) {
-    event.preventDefault();
-    activateViewTarget(viewShortcut);
-    return;
-  }
   if ((event.metaKey || event.ctrlKey) && event.key === "1") { event.preventDefault(); selectView("control"); }
   if ((event.metaKey || event.ctrlKey) && event.key === "2") { event.preventDefault(); selectView("everything"); }
   if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) {

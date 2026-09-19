@@ -245,6 +245,10 @@ h1 em { color: var(--accent); font-style: normal; }
 .tiny-live { display: flex; gap: 7px; align-items: center; }
 .pipeline-panel { min-height: 0; }
 .pipeline { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; padding: 15px 20px 23px; }
+.pipeline-message { display: grid; grid-column: 1 / -1; align-content: center; gap: 6px; min-height: 87px; padding: 0 20px 17px; }
+.pipeline-message strong { color: var(--muted); font-size: 13px; font-weight: 500; }
+.pipeline-message span { max-width: 420px; color: var(--dim); font-size: 11px; line-height: 1.45; }
+.pipeline-message.is-error strong { color: var(--danger); }
 .pipeline-node { position: relative; min-width: 0; }
 .pipeline-node:not(:last-child)::after { position: absolute; top: 10px; left: 21px; right: 0; height: 1px; background: var(--line-strong); content: ""; }
 .pipeline-node.is-done:not(:last-child)::after { background: var(--accent); }

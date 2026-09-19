@@ -439,6 +439,14 @@ const renderPipeline = () => {
     $("#pipeline").innerHTML = '<div class="loading-state" role="status">Reading local state…</div>';
     return;
   }
+  if (run.error && !run.active) {
+    $("#pipeline").innerHTML = `<div class="pipeline-message is-error"><strong>Collection stopped.</strong><span>${escapeHtml(run.error)}</span></div>`;
+    return;
+  }
+  if (!run.active && !state.liveRunActive && !run.completedAt) {
+    $("#pipeline").innerHTML = '<div class="pipeline-message"><strong>Snapshot ready.</strong><span>Run now to check your configured sources for anything new.</span></div>';
+    return;
+  }
   const activeIndex = stages.indexOf(run.stage);
   const livePipeline = state.liveRunActive && Boolean(state.liveRunId);
   const stageLabels = { collect: "Collect", normalize: "Clean", jev: "Decide", policy: "Safety", actions: "Actions", briefing: "Summary" };

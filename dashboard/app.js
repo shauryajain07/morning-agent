@@ -134,6 +134,8 @@ const decisionSummary = (decision) => {
 
 const confidence = (decision) => Math.round((decision?.output?.confidence ?? 0) * 100);
 
+const errorMessage = (error, fallback) => error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+
 const toast = (message, type = "") => {
   const element = document.createElement("div");
   element.className = `toast ${type}`;
@@ -163,10 +165,12 @@ const fetchState = async () => {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not read local agent state.");
     state.data = await response.json();
+    setConnectionStatus("live");
     reconcileLiveRun();
     render();
   } catch (error) {
-    if (state.data === null) toast(error instanceof Error ? error.message : "Could not read local agent state.", "error");
+    setConnectionStatus("reconnecting");
+    if (state.data === null) toast(errorMessage(error, "Could not read local agent state."), "error");
     throw error;
   }
 };
@@ -545,7 +549,7 @@ const runPulse = async (mock = false) => {
     if (!response.ok) throw new Error(payload.error ?? "Could not start run.");
     toast(mock ? "Demo run started." : "Run started.", "success");
   } catch (error) {
-    toast(error instanceof Error ? error.message : "Could not start run.", "error");
+    toast(errorMessage(error, "Could not start run."), "error");
     renderHeader();
   }
 };
@@ -560,7 +564,7 @@ const resolveReview = async (button) => {
     await fetchState();
   } catch (error) {
     button.disabled = false;
-    toast(error.message, "error");
+    toast(errorMessage(error, "Could not save review."), "error");
   }
 };
 

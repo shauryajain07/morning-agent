@@ -760,6 +760,9 @@ const openItem = (itemId) => {
 };
 
 const render = () => {
+  const activeElement = document.activeElement;
+  const focusedItemId = activeElement?.dataset?.openItem ?? "";
+  const focusedContainerId = activeElement?.closest("#activity-list, #stream-table, #deadline-list, #review-list")?.id ?? "";
   renderMetrics();
   renderHeader();
   renderPipeline();
@@ -770,6 +773,12 @@ const render = () => {
   renderFocus();
   renderCourseFilter();
   renderStream();
+  if (focusedItemId !== "") {
+    const container = focusedContainerId === "" ? document : $("#" + focusedContainerId);
+    const restored = Array.from(container?.querySelectorAll("[data-open-item]") ?? [])
+      .find((candidate) => candidate.dataset.openItem === focusedItemId);
+    restored?.focus();
+  }
 };
 
 const renderActivityScope = () => {

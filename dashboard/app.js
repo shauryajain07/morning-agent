@@ -396,6 +396,7 @@ const renderHeader = () => {
   $("#pipeline-title").textContent = runBusy ? "Collecting now" : run.error ? "Collection stopped" : !hasSnapshot ? "Reading state" : hasRunHistory ? "Collection" : "Saved activity";
   $("#pipeline-status").textContent = runBusy ? "Running" : run.error ? "Error" : !hasSnapshot ? "Loading" : isReconnecting ? "Offline" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", runBusy);
+  $(".pipeline-panel")?.classList.toggle("is-running", runBusy);
   $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !runBusy && !run.error);
   $("#status-caption").textContent = run.active
     ? "Checking your latest sources."

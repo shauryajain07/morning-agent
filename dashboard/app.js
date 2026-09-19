@@ -29,6 +29,8 @@ const state = {
 let connectionStatus = "connecting";
 let lastFocusedElement = null;
 let initialLoadErrorShown = false;
+let stateFetchInFlight = null;
+let searchRenderTimer = 0;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
 const sourceMeta = {
@@ -286,35 +288,44 @@ const pushActivity = (title, detail, tone = "neutral", at = new Date().toISOStri
   renderActivity();
 };
 
-const fetchState = async () => {
-  const firstLoad = state.data === null;
-  if (firstLoad) setWorkspaceBusy(true);
-  try {
-    const response = await fetch("/api/state", { cache: "no-store" });
-    if (!response.ok) throw new Error("Could not read local agent state.");
-    state.data = await response.json();
-    initialLoadErrorShown = false;
-    setWorkspaceBusy(false);
-    hideDataBanner();
-    setConnectionStatus("live");
-    reconcileLiveRun();
-    render();
-  } catch (error) {
-    setConnectionStatus("reconnecting");
-    if (state.data === null) {
+const fetchState = () => {
+  if (stateFetchInFlight !== null) return stateFetchInFlight;
+  const operation = (async () => {
+    const firstLoad = state.data === null;
+    if (firstLoad) setWorkspaceBusy(true);
+    try {
+      const response = await fetch("/api/state", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not read local agent state.");
+      state.data = await response.json();
+      initialLoadErrorShown = false;
       setWorkspaceBusy(false);
-      const message = errorMessage(error, "Could not read local agent state.");
-      showDataBanner("Local state unavailable", message);
-      renderUnavailable();
-      if (!initialLoadErrorShown) {
-        toast(message, "error");
-        initialLoadErrorShown = true;
+      hideDataBanner();
+      setConnectionStatus("live");
+      reconcileLiveRun();
+      render();
+    } catch (error) {
+      setConnectionStatus("reconnecting");
+      if (state.data === null) {
+        setWorkspaceBusy(false);
+        const message = errorMessage(error, "Could not read local agent state.");
+        showDataBanner("Local state unavailable", message);
+        renderUnavailable();
+        if (!initialLoadErrorShown) {
+          toast(message, "error");
+          initialLoadErrorShown = true;
+        }
+      } else {
+        showDataBanner("Connection interrupted", "Showing the last saved snapshot while the local service reconnects.");
       }
-    } else {
-      showDataBanner("Connection interrupted", "Showing the last saved snapshot while the local service reconnects.");
+      throw error;
     }
-    throw error;
-  }
+  })();
+  stateFetchInFlight = operation;
+  operation.then(
+    () => { if (stateFetchInFlight === operation) stateFetchInFlight = null; },
+    () => { if (stateFetchInFlight === operation) stateFetchInFlight = null; },
+  );
+  return operation;
 };
 
 const renderMetrics = () => {
@@ -931,9 +942,15 @@ $("#search-input").addEventListener("input", (event) => {
   state.query = event.target.value.trim();
   state.streamLimit = 50;
   $("#search-clear").hidden = state.query.length === 0;
-  renderActivityScope();
+  window.clearTimeout(searchRenderTimer);
+  searchRenderTimer = window.setTimeout(() => {
+    searchRenderTimer = 0;
+    renderActivityScope();
+  }, 120);
 });
 $("#search-clear").addEventListener("click", () => {
+  window.clearTimeout(searchRenderTimer);
+  searchRenderTimer = 0;
   $("#search-input").value = "";
   state.query = "";
   state.streamLimit = 50;

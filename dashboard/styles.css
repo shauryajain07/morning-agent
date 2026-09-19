@@ -251,6 +251,9 @@ h1 em { color: var(--accent); font-style: normal; }
 .pipeline-message strong { color: var(--muted); font-size: 13px; font-weight: 500; }
 .pipeline-message span { max-width: 420px; color: var(--dim); font-size: 11px; line-height: 1.45; }
 .pipeline-message.is-error strong { color: var(--danger); }
+.pipeline-panel.is-idle .pipeline { padding-top: 6px; padding-bottom: 10px; }
+.pipeline-panel.is-idle .pipeline-message { min-height: 58px; padding-bottom: 8px; }
+.pipeline-panel.is-idle .pipeline-foot { margin-bottom: 14px; padding-top: 10px; }
 .pipeline-node { position: relative; min-width: 0; }
 .pipeline-node:not(:last-child)::after { position: absolute; top: 10px; left: 21px; right: 0; height: 1px; background: var(--line-strong); content: ""; }
 .pipeline-node.is-done:not(:last-child)::after { background: var(--accent); }

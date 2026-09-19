@@ -949,6 +949,18 @@ const clearFilters = () => {
   renderActivityScope();
 };
 
+const syncFilterScrollHint = () => {
+  const wrap = $("#filter-scroll-wrap");
+  const scroller = $("#filter-scroll");
+  if (!wrap || !scroller) return;
+  const scrollable = scroller.scrollWidth > scroller.clientWidth + 1;
+  const atStart = !scrollable || scroller.scrollLeft <= 1;
+  const atEnd = !scrollable || scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 1;
+  wrap.classList.toggle("is-scrollable", scrollable);
+  wrap.classList.toggle("is-at-start", atStart);
+  wrap.classList.toggle("is-at-end", atEnd);
+};
+
 const selectView = (view) => {
   const control = view === "control";
   state.view = control ? "control" : "everything";
@@ -962,6 +974,7 @@ const selectView = (view) => {
   });
   $("#crumb-view").textContent = control ? "Today" : "All activity";
   syncFilterControls();
+  window.requestAnimationFrame(syncFilterScrollHint);
   if (!control && state.data !== null) renderActivityScope();
 };
 
@@ -1040,6 +1053,8 @@ $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   if (button.closest(".source-stack") || state.view !== "everything") selectView("everything");
   else renderActivityScope();
 }));
+$("#filter-scroll")?.addEventListener("scroll", syncFilterScrollHint, { passive: true });
+window.addEventListener("resize", syncFilterScrollHint);
 document.addEventListener("click", (event) => {
   const clearButton = event.target.closest("[data-clear-filters]");
   if (clearButton) { clearFilters(); return; }
@@ -1077,6 +1092,7 @@ tickClock();
 window.setInterval(tickClock, 1_000);
 selectView(state.view);
 syncFilterControls();
+syncFilterScrollHint();
 connectEvents();
 fetchState().catch(() => {});
 window.setInterval(() => fetchState().catch(() => {}), 10_000);

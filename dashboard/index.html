@@ -112,17 +112,19 @@
               <h1 id="everything-title">All activity</h1>
               <p class="lede">Email, coursework, work, news, and files saved here.</p>
             </div>
-            <div class="view-toggle" role="group" aria-label="Everything filters">
-              <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
-              <button class="filter-button" data-filter="deadlines" type="button" aria-pressed="false">Deadlines</button>
-              <button class="filter-button" data-filter="review" type="button" aria-pressed="false">Review</button>
-              <button class="filter-button" data-filter="email" type="button" aria-pressed="false">Inbox</button>
-              <button class="filter-button" data-filter="courses" type="button" aria-pressed="false">Coursework</button>
-              <button class="filter-button" data-filter="work" type="button" aria-pressed="false">Work</button>
-              <button class="filter-button" data-filter="moodle" type="button" aria-pressed="false">Moodle</button>
-              <button class="filter-button" data-filter="news" type="button" aria-pressed="false">News</button>
-              <button class="filter-button" data-filter="edstem" type="button" aria-pressed="false">Ed Lessons</button>
-              <button class="filter-button" data-filter="files" type="button" aria-pressed="false">Files</button>
+            <div class="view-toggle-wrap" id="filter-scroll-wrap">
+              <div class="view-toggle" id="filter-scroll" role="group" aria-label="Everything filters">
+                <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
+                <button class="filter-button" data-filter="deadlines" type="button" aria-pressed="false">Deadlines</button>
+                <button class="filter-button" data-filter="review" type="button" aria-pressed="false">Review</button>
+                <button class="filter-button" data-filter="email" type="button" aria-pressed="false">Inbox</button>
+                <button class="filter-button" data-filter="courses" type="button" aria-pressed="false">Coursework</button>
+                <button class="filter-button" data-filter="work" type="button" aria-pressed="false">Work</button>
+                <button class="filter-button" data-filter="moodle" type="button" aria-pressed="false">Moodle</button>
+                <button class="filter-button" data-filter="news" type="button" aria-pressed="false">News</button>
+                <button class="filter-button" data-filter="edstem" type="button" aria-pressed="false">Ed Lessons</button>
+                <button class="filter-button" data-filter="files" type="button" aria-pressed="false">Files</button>
+              </div>
             </div>
           </div>
 
@@ -145,6 +147,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-45"></script>
+    <script type="module" src="/app.js?rev=20260919-46"></script>
   </body>
 </html>

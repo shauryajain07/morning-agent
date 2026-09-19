@@ -306,6 +306,11 @@ h1 em { color: var(--accent); font-style: normal; }
 .text-button { padding: 3px 0; border: 0; color: var(--accent); background: transparent; font-size: 12px; cursor: pointer; }
 .text-button:hover { color: var(--text); }
 
+.view-toggle-wrap { position: relative; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.view-toggle-wrap::before, .view-toggle-wrap::after { position: absolute; top: 1px; bottom: 1px; z-index: 1; display: none; width: 22px; pointer-events: none; content: ""; }
+.view-toggle-wrap::before { left: 1px; border-radius: 6px 0 0 6px; background: linear-gradient(90deg, var(--panel), transparent); }
+.view-toggle-wrap::after { right: 1px; border-radius: 0 6px 6px 0; background: linear-gradient(270deg, var(--panel), transparent); }
+.view-toggle-wrap.is-scrollable:not(.is-at-start)::before, .view-toggle-wrap.is-scrollable:not(.is-at-end)::after { display: block; }
 .view-toggle { display: flex; flex-wrap: wrap; gap: 2px; max-width: 100%; padding: 3px; overflow: visible; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
 .view-toggle::-webkit-scrollbar { display: none; }
 .filter-button { padding: 7px 8px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 12px; white-space: nowrap; cursor: pointer; }
@@ -417,7 +422,7 @@ h1 em { color: var(--accent); font-style: normal; }
 @media (max-width: 900px) {
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page-heading-tight { display: block; }
-  .page-heading-tight .view-toggle { margin-top: 18px; }
+  .page-heading-tight .view-toggle-wrap { margin-top: 18px; }
 }
 
 @media (max-width: 760px) {
@@ -462,7 +467,8 @@ h1 em { color: var(--accent); font-style: normal; }
   .stream-source { display: block; grid-column: 1; grid-row: 2; margin-left: 19px; color: var(--dim); font-size: 10px; }
   .stream-when { display: none; }
   .stream-state { grid-column: 2; grid-row: 1 / span 2; justify-self: end; align-self: center; }
-  .view-toggle { width: 100%; margin-top: 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .view-toggle-wrap { width: 100%; margin-top: 20px; }
+  .view-toggle { width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .filter-button { flex: 0 0 auto; min-width: 72px; }
   .stream-result-count { margin-top: 7px; }
   .stream-footer { padding: 11px 15px 13px; }

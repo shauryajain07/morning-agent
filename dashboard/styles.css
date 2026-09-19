@@ -210,6 +210,9 @@ h1 em { color: var(--accent); font-style: normal; }
   position: relative;
   transition: border-color .15s ease;
 }
+.metric-link { cursor: pointer; text-align: left; }
+.metric-link:hover { border-color: rgba(106, 169, 255, .4); background: var(--panel-raised); }
+.metric-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .metric-card:hover { border-color: var(--line-strong); }
 .metric-card::after { display: none; }
 .metric-card.accent-cyan { color: var(--cyan); }

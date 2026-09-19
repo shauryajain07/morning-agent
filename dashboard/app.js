@@ -11,6 +11,10 @@ const state = {
   view: window.localStorage.getItem("morning-agent:view") === "everything" ? "everything" : "control",
   events: [],
   pipeline: {},
+  liveRunId: "",
+  liveRunActive: false,
+  liveStage: "",
+  liveLastEventAt: "",
 };
 
 let connectionStatus = "connecting";
@@ -67,6 +71,18 @@ const relativeTime = (value) => {
 };
 
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
+
+const effectiveRun = () => {
+  const run = state.data?.run ?? { active: false };
+  if (!state.liveRunActive) return run;
+  return {
+    ...run,
+    active: true,
+    runId: state.liveRunId || run.runId,
+    stage: state.liveStage || run.stage,
+    lastEventAt: state.liveLastEventAt || run.lastEventAt,
+  };
+};
 
 const courseInfo = (item) => {
   const metadata = item?.metadata ?? {};
@@ -151,7 +167,7 @@ const renderMetrics = () => {
 };
 
 const renderHeader = () => {
-  const run = state.data?.run ?? { active: false };
+  const run = effectiveRun();
   const label = run.active ? "Processing" : run.error ? "Needs attention" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
   $("#pipeline-status").textContent = run.active ? "Running" : run.error ? "Error" : "Idle";
@@ -179,11 +195,15 @@ const renderHeader = () => {
 };
 
 const renderPipeline = () => {
-  const run = state.data?.run ?? { active: false };
+  const run = effectiveRun();
   const activeIndex = stages.indexOf(run.stage);
+  const livePipeline = state.liveRunActive && Boolean(state.liveRunId);
   $("#pipeline").innerHTML = stages.map((stage, index) => {
-    const done = run.active ? index < activeIndex : Boolean(run.completedAt) && index <= activeIndex;
-    const active = run.active && index === activeIndex;
+    const liveStatus = state.pipeline[stage];
+    const done = livePipeline
+      ? liveStatus === "completed"
+      : run.active ? index < activeIndex : Boolean(run.completedAt) && index <= activeIndex;
+    const active = livePipeline ? liveStatus === "started" : run.active && index === activeIndex;
     return `<div class="pipeline-node ${done ? "is-done" : ""} ${active ? "is-active" : ""}">
       <div class="pipeline-dot">${done ? "✓" : String(index + 1).padStart(2, "0")}</div>
       <span class="pipeline-label">${escapeHtml(stage === "jev" ? "Jev decisions" : humanize(stage))}</span>
@@ -211,7 +231,7 @@ const renderReviewQueue = () => {
 };
 
 const renderActivity = () => {
-  const run = state.data?.run ?? { active: false };
+  const run = effectiveRun();
   const fallback = run.error
     ? { title: "Last run stopped", detail: run.error, tone: "coral", at: run.lastEventAt ?? new Date().toISOString() }
     : run.active
@@ -404,11 +424,20 @@ const handleEvent = (event) => {
   let payload;
   try { payload = JSON.parse(event.data); } catch { return; }
   if (payload.type === "run_started") {
-    state.pipeline = {};
+    state.liveRunId = payload.runId ?? "";
+    state.liveRunActive = true;
+    state.liveStage = "collect";
+    state.liveLastEventAt = payload.at ?? "";
+    state.pipeline = { collect: "started" };
     pushActivity("Run started", "Checking the local sources", "cyan", payload.at);
   } else if (payload.type === "stage") {
+    state.liveRunId = payload.runId ?? state.liveRunId;
+    state.liveRunActive = true;
+    state.liveStage = payload.stage ?? state.liveStage;
+    state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
     state.pipeline[payload.stage] = payload.status;
-    pushActivity(`${payload.label} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "The local run is moving" : "Step complete", payload.status === "started" ? "lime" : "cyan", payload.at);
+    const stageLabel = payload.stage === "jev" ? "Jev decisions" : humanize(payload.stage);
+    pushActivity(`${stageLabel} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "The local run is moving" : "Step complete", payload.status === "started" ? "lime" : "cyan", payload.at);
   } else if (payload.type === "items_collected") {
     pushActivity("Items collected", `${payload.count} items found`, "cyan", payload.at);
   } else if (payload.type === "decisions_completed") {
@@ -416,9 +445,45 @@ const handleEvent = (event) => {
   } else if (payload.type === "actions_completed") {
     pushActivity("Actions checked", `${payload.count} possible actions reviewed`, "gold", payload.at);
   } else if (payload.type === "run_completed") {
+    state.liveRunActive = false;
+    state.liveStage = "";
+    state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
+    state.pipeline = {};
+    if (state.data) {
+      const { error: _previousError, ...previousRun } = state.data.run;
+      state.data = {
+        ...state.data,
+        run: {
+          ...previousRun,
+          active: false,
+          runId: payload.runId,
+          completedAt: payload.at,
+          lastEventAt: payload.at,
+          itemCount: payload.itemCount,
+          decisionCount: payload.decisionCount,
+          actionCount: payload.actionCount,
+        },
+      };
+    }
     pushActivity("Run complete", `${payload.itemCount} items · ${payload.decisionCount} decisions`, "lime", payload.at);
     fetchState().catch(() => {});
   } else if (payload.type === "run_failed") {
+    state.liveRunActive = false;
+    state.liveStage = "";
+    state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
+    state.pipeline = {};
+    if (state.data) {
+      state.data = {
+        ...state.data,
+        run: {
+          ...state.data.run,
+          active: false,
+          runId: payload.runId,
+          lastEventAt: payload.at,
+          error: payload.error,
+        },
+      };
+    }
     pushActivity("Run stopped", payload.error, "coral", payload.at);
     toast(payload.error, "error");
     fetchState().catch(() => {});

@@ -405,8 +405,13 @@ h1 em { color: var(--accent); font-style: normal; }
   .metric-card strong { margin-top: 19px; font-size: 30px; }
   .metric-card p { margin-top: 10px; font-size: 10px; }
   .panel-header { padding: 16px 15px 13px; }
-  .pipeline { padding: 13px 15px 19px; }
-  .pipeline-label { font-size: 8px; }
+  .pipeline-panel, .review-panel, .activity-panel, .next-panel { min-height: 0; }
+  .review-list { max-height: 320px; }
+  .activity-list, .deadline-list { max-height: 320px; overflow-y: auto; }
+  .pipeline { grid-template-columns: 1fr; gap: 0; padding: 10px 15px 15px; }
+  .pipeline-node { display: grid; grid-template-columns: 21px 1fr; align-items: center; min-height: 34px; }
+  .pipeline-node:not(:last-child)::after { top: 21px; left: 10px; right: auto; width: 1px; height: calc(100% + 10px); }
+  .pipeline-label { max-width: none; margin: 0 0 0 10px; font-size: 11px; }
   .pipeline-foot { margin: 0 15px 15px; }
   .source-visual { grid-template-columns: 1fr; justify-items: center; gap: 16px; padding: 1px 15px 19px; }
   .source-donut { width: 124px; height: 124px; }

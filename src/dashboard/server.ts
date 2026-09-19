@@ -404,7 +404,7 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
 
   if (request.method === "POST" && pathname === "/api/run") {
     if (activeRun !== undefined || runState.active) {
-      sendError(response, 409, "A pulse is already running.");
+      sendError(response, 409, "A run is already in progress.");
       return true;
     }
     let body: unknown;

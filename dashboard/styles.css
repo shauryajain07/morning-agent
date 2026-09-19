@@ -349,8 +349,8 @@ h1 em { color: var(--accent); font-style: normal; }
 .stream-table-head { padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--dim); font-size: 11px; }
 .stream-row { width: 100%; padding: 13px 20px; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; text-align: left; cursor: pointer; }
 .stream-row:hover { background: rgba(255, 255, 255, .035); }
-.stream-signal { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center; min-width: 0; }
-.stream-icon { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid currentColor; border-radius: 7px; font-size: 10px; font-weight: 650; }
+.stream-signal { display: grid; grid-template-columns: 9px 1fr; gap: 10px; align-items: center; min-width: 0; }
+.stream-icon { display: block; width: 7px; height: 7px; border: 0; border-radius: 50%; background: currentColor; font-size: 0; }
 .stream-title { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .stream-subtitle { display: block; overflow: hidden; margin-top: 3px; color: var(--dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .stream-source, .stream-when { color: var(--muted); font-size: 11px; }
@@ -453,9 +453,10 @@ h1 em { color: var(--accent); font-style: normal; }
   .course-filter select { min-width: 0; max-width: none; width: 100%; }
   .search-box { min-width: 0; margin-top: 0; }
   .stream-table-head { display: none; }
-  .stream-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px 15px; }
-  .stream-source, .stream-when { display: none; }
-  .stream-state { justify-self: end; }
+  .stream-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 5px 10px; padding: 12px 15px; }
+  .stream-source { display: block; grid-column: 1; grid-row: 2; margin-left: 19px; color: var(--dim); font-size: 10px; }
+  .stream-when { display: none; }
+  .stream-state { grid-column: 2; grid-row: 1 / span 2; justify-self: end; align-self: center; }
   .view-toggle { width: 100%; margin-top: 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .filter-button { flex: 0 0 auto; min-width: 72px; }
   .stream-result-count { margin-top: 7px; }

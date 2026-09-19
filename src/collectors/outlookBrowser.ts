@@ -188,13 +188,24 @@ export class OutlookBrowserSession {
   }
 
   private async waitForAuthentication(page: Page): Promise<void> {
-    if (!(await this.isAuthenticationPage(page))) return;
-    if (this.options.headless === true) throw new OutlookAuthenticationRequiredError(page.url());
-
     const deadline = Date.now() + this.loginTimeoutMs;
+    // Outlook first serves a same-origin shell and may redirect it to Microsoft
+    // sign-in a moment later. Wait for either a real message row or a settled
+    // authentication state so the initial shell is not mistaken for an empty inbox.
+    const shellDeadline = Date.now() + Math.min(this.loginTimeoutMs, 10_000);
     while (Date.now() < deadline) {
-      await page.waitForTimeout(1_000);
-      if (!(await this.isAuthenticationPage(page))) return;
+      if (await this.isAuthenticationPage(page)) {
+        if (this.options.headless === true) throw new OutlookAuthenticationRequiredError(page.url());
+        await page.waitForTimeout(1_000);
+        continue;
+      }
+
+      const messageRows = await page
+        .locator('[role="option"], [role="row"], [data-convid], [data-conversation-id]')
+        .count()
+        .catch(() => 0);
+      if (messageRows > 0 || Date.now() >= shellDeadline) return;
+      await page.waitForTimeout(500);
     }
     throw new OutlookAuthenticationRequiredError(page.url());
   }

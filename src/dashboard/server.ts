@@ -479,7 +479,7 @@ const serveStatic = async (response: ServerResponse, pathname: string): Promise<
     const body = await readFile(filePath);
     response.writeHead(200, {
       "content-type": contentTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream",
-      "cache-control": "no-cache",
+      "cache-control": "no-store",
     });
     response.end(body);
   } catch {

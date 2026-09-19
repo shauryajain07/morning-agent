@@ -481,6 +481,26 @@ const filteredItems = () => {
   });
 };
 
+const emptyStreamCopy = () => {
+  if (state.query !== "") return { title: "No matches found.", detail: `Nothing matches “${state.query}”. Try a different search or clear it.` };
+  if (state.course !== "") {
+    const selectedCourse = $("#course-filter")?.selectedOptions?.[0]?.textContent ?? "this course";
+    return { title: `No items in ${selectedCourse}.`, detail: "Run a check or choose another course to see more activity." };
+  }
+  return {
+    all: { title: "No items yet.", detail: "Run a check to populate your local activity feed." },
+    deadlines: { title: "No upcoming deadlines.", detail: "No saved deadlines match the current view." },
+    review: { title: "Nothing needs review.", detail: "Your current decisions are above the review threshold." },
+    email: { title: "Inbox is clear.", detail: "No inbox items match the current view." },
+    courses: { title: "No coursework here yet.", detail: "Moodle and Ed Lessons items will appear after a check." },
+    work: { title: "No work items here yet.", detail: "GitHub and Calendar items will appear after a check." },
+    moodle: { title: "No Moodle items here yet.", detail: "Moodle coursework will appear after a check." },
+    news: { title: "No daily news here yet.", detail: "News items will appear after a check." },
+    edstem: { title: "No Ed Lessons here yet.", detail: "Lesson updates will appear after a check." },
+    files: { title: "No saved files here yet.", detail: "Downloaded files will appear after a check." },
+  }[state.filter] ?? { title: "No items here yet.", detail: "Run a check or loosen the filter to see more of your day." };
+};
+
 const renderStream = () => {
   const items = filteredItems();
   const pendingReviewsByItem = new Map();
@@ -490,13 +510,14 @@ const renderStream = () => {
     pendingReviewsByItem.set(entry.item.id, pending);
   }
   const visibleItems = items.slice(0, state.streamLimit);
-  const filterSuffix = state.query || state.course ? " · filtered" : "";
+  const filterSuffix = state.filter !== "all" || state.query || state.course ? " · filtered" : "";
   $("#stream-result-count").textContent = `${items.length} item${items.length === 1 ? "" : "s"}${filterSuffix}`;
   if (items.length === 0) {
     const clearAction = state.filter !== "all" || state.course !== "" || state.query !== ""
       ? '<button class="empty-action" data-clear-filters type="button">Clear filters</button>'
       : "";
-    $("#stream-table").innerHTML = `<div class="empty-state"><div><strong>No items here yet.</strong><p>Run a check or loosen the filter to see more of your day.</p>${clearAction}</div></div>`;
+    const copy = emptyStreamCopy();
+    $("#stream-table").innerHTML = `<div class="empty-state"><div><strong>${escapeHtml(copy.title)}</strong><p>${escapeHtml(copy.detail)}</p>${clearAction}</div></div>`;
     $("#stream-pagination").textContent = "Showing 0 items";
     $("#stream-more").hidden = true;
     return;

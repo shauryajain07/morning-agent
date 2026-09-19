@@ -56,7 +56,36 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character
   '"': "&quot;",
 }[character]));
 
-const cleanDisplayText = (value) => String(value ?? "")
+const htmlEntities = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  hellip: "…",
+  ldquo: "“",
+  lt: "<",
+  mdash: "—",
+  nbsp: " ",
+  ndash: "–",
+  quot: '"',
+  rdquo: "”",
+  rsquo: "’",
+};
+
+const decodeHtmlEntities = (value) => String(value ?? "").replace(/&(#x[\da-f]+|#\d+|[a-z][a-z\d]+);/giu, (match, entity) => {
+  const normalized = entity.toLowerCase();
+  if (normalized.startsWith("#x")) {
+    const codePoint = Number.parseInt(normalized.slice(2), 16);
+    return Number.isInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match;
+  }
+  if (normalized.startsWith("#")) {
+    const codePoint = Number.parseInt(normalized.slice(1), 10);
+    return Number.isInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match;
+  }
+  return htmlEntities[normalized] ?? match;
+});
+
+const cleanDisplayText = (value) => decodeHtmlEntities(value)
+  .replace(/[\u00ad\u034f\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/gu, "")
   .replace(/\bSkip to (?:sidebar )?(?:navigation menu|hidden blocks|page footer|main content|-)(?=\s|$)/giu, " ")
   .replace(/\bBlocks\s+Close(?:\s+Blocks)?(?:\s+Close\s+Blocks)?/giu, " ")
   .replace(/\bSkip\s+(?:To\s+)?do(?:\s+To\s+do)*/giu, " ")
@@ -70,6 +99,8 @@ const cleanDisplayText = (value) => String(value ?? "")
   .replace(/\s+Blocks(?:\s+Blocks){2,}\s+FAQs for Teachers[\s\S]*$/iu, " ")
   .replace(/\s+/gu, " ")
   .trim();
+
+const cleanTitle = (value) => cleanDisplayText(value) || "Untitled item";
 
 const formatTime = (value) => {
   if (!value) return "—";
@@ -363,7 +394,7 @@ const renderReviewQueue = () => {
     const percent = confidence(entry.decision);
     return `<article class="review-card">
       <div class="review-meta"><span>${escapeHtml(meta.label)} · ${escapeHtml(humanize(entry.decision.decision))}</span><span class="review-confidence">${percent}% confidence</span></div>
-      <button class="review-title plain-button" data-open-item="${escapeHtml(entry.item.id)}" type="button">${escapeHtml(entry.item.title)}</button>
+      <button class="review-title plain-button" data-open-item="${escapeHtml(entry.item.id)}" type="button">${escapeHtml(cleanTitle(entry.item.title))}</button>
       <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Jev flagged this for a human check.</div>
       <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Mark reviewed</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss</button></div>
     </article>`;
@@ -396,13 +427,13 @@ const priorityItems = () => {
       const urgencyLabel = urgency === "today" ? "needs attention today" : urgency === "later" ? "action suggested later" : "action suggested soon";
       addCandidate(
         item,
-        item.title,
+        cleanTitle(item.title),
         `${source(item.source).label} · ${urgencyLabel}`,
         urgency === "today" ? "coral" : "gold",
         score,
       );
     } else if (decision.decision === "importantEmail" && output.important === true && item.metadata?.unread === true) {
-      addCandidate(item, `${item.title}`, `${source(item.source).label} · important inbox`, "cyan", 70);
+      addCandidate(item, cleanTitle(item.title), `${source(item.source).label} · important inbox`, "cyan", 70);
     }
   }
 
@@ -413,7 +444,7 @@ const priorityItems = () => {
     const score = 95 - Math.max(0, Math.min(20, hoursUntil / 24));
     addCandidate(
       item,
-      item.title,
+      cleanTitle(item.title),
       `${source(deadline.source).label} · due ${formatDate(deadline.deadline)} at ${formatTime(deadline.deadline)}`,
       "coral",
       score,
@@ -454,7 +485,8 @@ const renderDeadlines = () => {
   }
   $("#deadline-list").innerHTML = deadlines.map((deadline) => {
     const date = new Date(deadline.deadline);
-    return `<button class="deadline-row" data-open-item="${escapeHtml(deadline.id)}" type="button" aria-label="Open ${escapeHtml(deadline.title)}"><span class="deadline-date"><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { day: "2-digit" }).format(date))}</span><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { month: "short" }).format(date))}</span></span><span><span class="deadline-title">${escapeHtml(deadline.title)}</span><span class="deadline-source">${escapeHtml(source(deadline.source).label)}</span></span><span class="deadline-when">${escapeHtml(formatTime(deadline.deadline))}</span></button>`;
+    const title = cleanTitle(deadline.title);
+    return `<button class="deadline-row" data-open-item="${escapeHtml(deadline.id)}" type="button" aria-label="Open ${escapeHtml(title)}"><span class="deadline-date"><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { day: "2-digit" }).format(date))}</span><span>${escapeHtml(new Intl.DateTimeFormat("en-HK", { month: "short" }).format(date))}</span></span><span><span class="deadline-title">${escapeHtml(title)}</span><span class="deadline-source">${escapeHtml(source(deadline.source).label)}</span></span><span class="deadline-when">${escapeHtml(formatTime(deadline.deadline))}</span></button>`;
   }).join("");
 };
 
@@ -612,6 +644,7 @@ const renderStream = () => {
   }
   $("#stream-table").innerHTML = visibleItems.map((item) => {
     const meta = source(item.source);
+    const title = cleanTitle(item.title);
     const pendingReviews = pendingReviewsByItem.get(item.id) ?? [];
     const weakest = pendingReviews.slice().sort((left, right) => confidence(left) - confidence(right))[0];
     const hot = weakest && confidence(weakest) < 75;
@@ -622,7 +655,7 @@ const renderStream = () => {
     const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";
     const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
     const subtitle = [itemCourse?.label, cleanDisplayText(item.content ?? "")].filter(Boolean).join(" · ").slice(0, 120);
-    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(itemDisplayTimestamp(item)))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
+    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(itemDisplayTimestamp(item)))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
   $("#stream-pagination").textContent = items.length > visibleItems.length
     ? `Showing ${visibleItems.length} of ${items.length} items`
@@ -694,11 +727,12 @@ const openItem = (itemId) => {
   const item = state.data?.items?.find((candidate) => candidate.id === itemId);
   if (!item) return;
   const meta = source(item.source);
+  const title = cleanTitle(item.title);
   const decisions = (state.data?.decisions ?? []).filter((decision) => decision.itemId === item.id);
   const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
   const dialog = $("#detail-dialog");
   lastFocusedElement = document.activeElement;
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();

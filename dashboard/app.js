@@ -260,8 +260,61 @@ const renderReviewQueue = () => {
   }).join("");
 };
 
+const priorityItems = () => {
+  const items = new Map((state.data?.items ?? []).map((item) => [item.id, item]));
+  const candidates = new Map();
+  const addCandidate = (item, title, detail, tone, score) => {
+    const current = candidates.get(item.id);
+    if (current !== undefined && current.score >= score) return;
+    candidates.set(item.id, {
+      itemId: item.id,
+      title,
+      detail,
+      tone,
+      score,
+      at: item.observedAt,
+    });
+  };
+
+  for (const decision of state.data?.decisions ?? []) {
+    const item = items.get(decision.itemId);
+    if (item === undefined) continue;
+    const output = decision.output ?? {};
+    if (decision.decision === "requiresAction" && output.actionRequired === true) {
+      const urgency = output.urgency ?? "soon";
+      const score = urgency === "today" ? 100 : urgency === "soon" ? 82 : urgency === "later" ? 55 : 50;
+      addCandidate(
+        item,
+        urgency === "today" ? "Needs attention today" : "Action suggested",
+        `${source(item.source).label} · ${decisionSummary(decision)}`,
+        urgency === "today" ? "coral" : "gold",
+        score,
+      );
+    } else if (decision.decision === "importantEmail" && output.important === true && item.metadata?.unread === true) {
+      addCandidate(item, "Important inbox", `${source(item.source).label} · ${decisionSummary(decision)}`, "cyan", 70);
+    }
+  }
+
+  for (const deadline of state.data?.deadlines ?? []) {
+    const item = items.get(deadline.id);
+    if (item === undefined) continue;
+    const hoursUntil = (new Date(deadline.deadline).getTime() - Date.now()) / 3_600_000;
+    const score = 95 - Math.max(0, Math.min(20, hoursUntil / 24));
+    addCandidate(
+      item,
+      "Upcoming deadline",
+      `${source(deadline.source).label} · ${formatDate(deadline.deadline)} at ${formatTime(deadline.deadline)}`,
+      "coral",
+      score,
+    );
+  }
+
+  return Array.from(candidates.values()).sort((left, right) => right.score - left.score).slice(0, 4);
+};
+
 const renderActivity = () => {
   const run = effectiveRun();
+  const priorities = state.events.length === 0 && !run.active && !run.error ? priorityItems() : [];
   const fallback = run.error
     ? { title: "Last run stopped", detail: run.error, tone: "coral", at: run.lastEventAt ?? new Date().toISOString() }
     : run.active
@@ -271,8 +324,14 @@ const renderActivity = () => {
         : state.data?.metrics?.total
           ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run again for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
           : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
-  const events = state.events.length > 0 ? state.events : [fallback];
-  $("#activity-list").innerHTML = events.map((event) => `<div class="activity-row"><span class="activity-pip ${escapeHtml(event.tone)}"></span><div><div class="activity-title">${escapeHtml(event.title)}</div><div class="activity-detail">${escapeHtml(event.detail)}</div></div><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span></div>`).join("");
+  const events = state.events.length > 0 ? state.events : priorities.length > 0 ? priorities : [fallback];
+  $("#activity-kicker").textContent = priorities.length > 0 && state.events.length === 0 ? "Worth a look" : "Recent activity";
+  $("#activity-list").innerHTML = events.map((event) => {
+    const body = `<span class="activity-pip ${escapeHtml(event.tone)}"></span><span><span class="activity-title">${escapeHtml(event.title)}</span><span class="activity-detail">${escapeHtml(event.detail)}</span></span><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span>`;
+    return event.itemId === undefined
+      ? `<div class="activity-row">${body}</div>`
+      : `<button class="activity-row activity-link" data-open-item="${escapeHtml(event.itemId)}" type="button" aria-label="Open ${escapeHtml(event.title)}">${body}</button>`;
+  }).join("");
 };
 
 const renderDeadlines = () => {

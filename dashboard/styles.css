@@ -272,13 +272,15 @@ h1 em { color: var(--accent); font-style: normal; }
 .activity-panel, .next-panel { min-height: 274px; }
 .activity-list { padding: 0 20px 18px; }
 .activity-row { display: grid; grid-template-columns: 16px 1fr auto; gap: 9px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.activity-link { width: 100%; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.activity-link:hover { background: rgba(255, 255, 255, .035); }
 .activity-pip { width: 6px; height: 6px; margin-top: 4px; border-radius: 50%; background: var(--dim); }
 .activity-pip.lime { background: var(--lime); }
 .activity-pip.cyan { background: var(--cyan); }
 .activity-pip.gold { background: var(--gold); }
 .activity-pip.coral { background: var(--coral); }
-.activity-title { color: var(--text); font-size: 12px; }
-.activity-detail { margin-top: 3px; color: var(--dim); font-size: 10px; }
+.activity-title { display: block; color: var(--text); font-size: 12px; }
+.activity-detail { display: block; margin-top: 3px; color: var(--dim); font-size: 10px; }
 .activity-time { color: var(--dim); font-size: 10px; white-space: nowrap; }
 .deadline-list { padding: 0 20px 18px; }
 .deadline-row { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 0; border: 0; border-top: 1px solid var(--line); color: inherit; background: transparent; text-align: left; cursor: pointer; }

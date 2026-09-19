@@ -929,6 +929,8 @@ const resolveReview = async (button) => {
     if (!response.ok) throw new Error(payload.error ?? "Could not save review.");
     toast(button.dataset.reviewStatus === "approved" ? "Item marked reviewed." : "Item dismissed from the queue.", "success");
     await fetchState();
+    const nextReviewAction = $("#review-list [data-review-item]");
+    (nextReviewAction ?? $("#queue-count"))?.focus();
   } catch (error) {
     button.disabled = false;
     toast(errorMessage(error, "Could not save review."), "error");

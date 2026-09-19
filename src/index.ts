@@ -229,8 +229,8 @@ export const runMorning = async (options: RunOptions): Promise<string> => {
     store.recordRun(runRecord);
     emitRunEvent(options, event);
   };
-  emit({ type: "run_started", runId, at: now.toISOString() });
   try {
+    emit({ type: "run_started", runId, at: now.toISOString() });
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "started", label: stageLabels.collect });
     logStage(options.verbose, "COLLECT");
     const collected = options.mock ? await collectMockItems() : await collectRealItems();

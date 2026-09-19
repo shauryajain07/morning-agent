@@ -59,6 +59,16 @@ const math1851AbCoursePattern = /\bMATH1851[_\s-]*1AB\b/iu;
 
 const cleanText = (value: string): string => value.replace(/\s+/gu, " ").trim();
 
+const stripMoodleNavigationChrome = (value: string): string => cleanText(
+  value
+    .replace(/\bSkip to (?:sidebar )?(?:navigation menu|hidden blocks|page footer|main content|-)(?=\s|$)/giu, " ")
+    .replace(/\bBlocks\s+Close(?:\s+Blocks)?(?:\s+Close\s+Blocks)?/giu, " ")
+    .replace(/\bSkip\s+(?:To\s+)?do(?:\s+To\s+do)*/giu, " ")
+    .replace(/\bThere are no upcoming events\s+Go to calendar\.\.\./giu, " ")
+    .replace(/\bSkip\s+ReadingList@HKUL(?:\s+ReadingList@HKUL)?\s+Reading list for\s+\S+\s+Close\s+Light Mode\s+\d+\s+JS\s+Open course index\s*/iu, " ")
+    .replace(/\bSkip\s+ReadingList@HKUL\s+R\b/giu, " "),
+);
+
 const isHttpUrl = (value: URL): boolean => value.protocol === "https:" || value.protocol === "http:";
 
 const toCanonicalMoodleUrl = (value: string): string | undefined => {
@@ -457,7 +467,7 @@ export const parseMoodleDate = (
 };
 
 const candidateText = (_snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): string =>
-  cleanText(`${link.text} ${link.ariaLabel} ${link.title} ${link.context}`);
+  stripMoodleNavigationChrome(`${link.text} ${link.ariaLabel} ${link.title} ${link.context}`);
 
 const pathFor = (href: string): string => {
   try {
@@ -574,7 +584,7 @@ const makeItem = (
   if (course !== undefined) metadata.course = course;
   if (course === undefined && courseId !== undefined) metadata.courseId = courseId;
 
-  const context = cleanText(link.context || text).slice(0, 4_000);
+  const context = stripMoodleNavigationChrome(link.context || text).slice(0, 4_000);
   const createdAt = createdAtCue.test(context) ? parseMoodleDate(context, now, 12, 0) : undefined;
   const deadline = kind === "assignment" && /due|deadline|submit|submission|close/iu.test(context)
     ? parseMoodleDate(context, now)

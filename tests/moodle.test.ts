@@ -127,6 +127,50 @@ describe("Moodle browser adapter", () => {
     expect(result.courseFiles[0]?.metadata.kind).toBe("course_file");
   });
 
+  it("removes Moodle accessibility navigation chrome from item context", () => {
+    const result = extractMoodleItems([
+      {
+        url: "https://moodle.example/course/view.php?id=10",
+        title: "ENGG1000",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/mod/assign/view.php?id=42",
+            text: "ASSIGNMENT 1 is due",
+            context: "Skip to sidebar navigation menu Skip to sidebar hidden blocks Skip to page footer Skip to main content Blocks Close Blocks Close Blocks Skip To do To do There are no upcoming events Go to calendar... Skip ReadingList@HKUL R ASSIGNMENT 1 is due — Due: 23 September 2026",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.assignments[0]?.content).not.toMatch(/Skip|Blocks Close|There are no upcoming events/iu);
+    expect(result.assignments[0]?.content).toContain("ASSIGNMENT 1 is due");
+  });
+
+  it("removes Moodle drawer chrome before the page context", () => {
+    const result = extractMoodleItems([
+      {
+        url: "https://moodle.example/course/view.php?id=10",
+        title: "ENGG1330",
+        bodyText: "",
+        links: [
+          {
+            href: "https://moodle.example/mod/assign/view.php?id=43",
+            text: "Participation assignment",
+            context: "Skip ReadingList@HKUL ReadingList@HKUL Reading list for _ENGG1330_1ABCDEFGHJKLMNO_2026 Close Light Mode 63 JS Open course index Home Courses Participation records",
+            title: "",
+            ariaLabel: "",
+          },
+        ],
+      },
+    ]);
+
+    expect(result.assignments[0]?.content).not.toContain("ReadingList@HKUL");
+    expect(result.assignments[0]?.content).toContain("Home Courses Participation records");
+  });
+
   it("discovers bounded same-origin activity pages for nested files", () => {
     const snapshot: MoodlePageSnapshot = {
       url: "https://moodle.example/course/view.php?id=10",

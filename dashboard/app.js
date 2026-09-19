@@ -44,6 +44,16 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character
   '"': "&quot;",
 }[character]));
 
+const cleanDisplayText = (value) => String(value ?? "")
+  .replace(/\bSkip to (?:sidebar )?(?:navigation menu|hidden blocks|page footer|main content|-)(?=\s|$)/giu, " ")
+  .replace(/\bBlocks\s+Close(?:\s+Blocks)?(?:\s+Close\s+Blocks)?/giu, " ")
+  .replace(/\bSkip\s+(?:To\s+)?do(?:\s+To\s+do)*/giu, " ")
+  .replace(/\bThere are no upcoming events\s+Go to calendar\.\.\./giu, " ")
+  .replace(/\bSkip\s+ReadingList@HKUL(?:\s+ReadingList@HKUL)?\s+Reading list for\s+\S+\s+Close\s+Light Mode\s+\d+\s+JS\s+Open course index\s*/iu, " ")
+  .replace(/\bSkip\s+ReadingList@HKUL\s+R\b/giu, " ")
+  .replace(/\s+/gu, " ")
+  .trim();
+
 const formatTime = (value) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -533,7 +543,7 @@ const renderStream = () => {
     const itemCourse = courseInfo(item);
     const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";
     const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
-    const subtitle = [itemCourse?.label, item.content ?? ""].filter(Boolean).join(" · ").slice(0, 120);
+    const subtitle = [itemCourse?.label, cleanDisplayText(item.content ?? "")].filter(Boolean).join(" · ").slice(0, 120);
     return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
   $("#stream-pagination").textContent = items.length > visibleItems.length
@@ -578,7 +588,7 @@ const openItem = (itemId) => {
   const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
   const dialog = $("#detail-dialog");
   lastFocusedElement = document.activeElement;
-  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(item.content ?? "No content excerpt stored for this item.")}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
+  $("#detail-content").innerHTML = `<div class="dialog-close"><button id="close-detail" type="button" aria-label="Close detail">×</button></div><div class="detail-source"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span>${escapeHtml(meta.label)} · ${escapeHtml(formatDate(item.createdAt ?? item.observedAt))}</div><h2 id="detail-title">${escapeHtml(item.title)}</h2>${metadataMarkup(item)}<div class="detail-content">${escapeHtml(cleanDisplayText(item.content ?? "No content excerpt stored for this item."))}</div>${url}${resourceMarkup(item)}<div class="detail-section"><h3>Jev decisions</h3><div class="decision-stack">${decisions.length === 0 ? '<div class="detail-content">No decision was needed for this item.</div>' : decisions.map((decision) => `<div class="decision-row"><div><div class="decision-name">${escapeHtml(humanize(decision.decision))}</div><div class="decision-answer">${escapeHtml(decisionSummary(decision))}</div></div><div><div class="decision-meter"><span style="width:${confidence(decision)}%"></span></div><div class="decision-percent">${confidence(decision)}%</div></div></div>`).join("")}</div></div>`;
   if (!dialog.open) dialog.showModal();
   $("#close-detail").addEventListener("click", closeDetail, { once: true });
   $("#close-detail").focus();

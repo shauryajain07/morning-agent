@@ -337,7 +337,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .focus-line { display: flex; justify-content: space-between; gap: 15px; padding: 11px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .focus-line strong { color: var(--text); font-weight: 600; }
 
-.stream-panel { overflow: hidden; }
+.stream-panel { overflow: clip; }
 .stream-header { align-items: end; }
 .stream-heading { min-width: 0; }
 .stream-result-count { display: inline-block; margin-top: 9px; color: var(--dim); font-size: 11px; }
@@ -354,7 +354,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .search-clear[hidden] { display: none; }
 .search-clear:hover { color: var(--text); background: rgba(255, 255, 255, .16); }
 .stream-table-head, .stream-row { display: grid; grid-template-columns: minmax(210px, 1.5fr) 100px 110px 110px; gap: 16px; align-items: center; }
-.stream-table-head { padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--dim); font-size: 11px; }
+.stream-table-head { position: sticky; top: 70px; z-index: 3; padding: 10px 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--dim); background: var(--panel); font-size: 11px; }
 .stream-row { width: 100%; padding: 13px 20px; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; text-align: left; cursor: pointer; }
 .stream-row:hover { background: rgba(255, 255, 255, .035); }
 .stream-signal { display: grid; grid-template-columns: 9px 1fr; gap: 10px; align-items: center; min-width: 0; }

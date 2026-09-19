@@ -20,13 +20,13 @@ export const collectMockItems = async (): Promise<AgentItem[]> => {
     ...getMockGitHubItems(),
     ...parseAgentItems([
       {
-        id: "edstem:mock-thread",
+        id: "edstem:mock-lesson",
         source: "edstem",
-        title: "A useful EdStem course discussion",
-        content: "A mock EdStem thread for testing the reading-value decision.",
-        url: "https://us.edstem.org/us/courses/146267/discussion/42",
+        title: "A useful EdStem lesson",
+        content: "A mock EdStem lesson for testing the reading-value decision.",
+        url: "https://edstem.org/us/courses/146267/lessons/42",
         createdAt: new Date("2026-09-19T06:30:00.000Z"),
-        metadata: { kind: "thread", platform: "edstem", course: "MATH1851" },
+        metadata: { kind: "lesson", platform: "edstem", course: "MATH1851" },
       },
       {
         id: "news:mock-daily-brief",

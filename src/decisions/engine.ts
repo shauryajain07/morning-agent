@@ -148,13 +148,13 @@ const createQuestions = (item: AgentItem): Questions => {
   if (item.source === "edstem" || item.source === "news") {
     return {
       worthReading: noul(
-        "Is this article worth the user's limited reading time this morning?",
+        "Is this news article or EdStem lesson worth the user's limited reading time this morning?",
         {
           true: "It has clear relevance, novelty, importance, or useful insight for the user.",
           false: "It is routine, low-relevance, repetitive, or not worth prioritizing this morning.",
         },
       ),
-      newsCategory: choice("Which category best describes this article?", newsCategoryCriteria),
+      newsCategory: choice("Which category best describes this news item or EdStem lesson?", newsCategoryCriteria),
     };
   }
 

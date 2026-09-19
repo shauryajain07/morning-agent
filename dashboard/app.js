@@ -14,7 +14,7 @@ const sourceMeta = {
   calendar: { label: "Calendar", icon: "◷", className: "calendar" },
   downloads: { label: "Files", icon: "↓", className: "files" },
   news: { label: "Daily news", icon: "✦", className: "news" },
-  edstem: { label: "EdStem", icon: "E", className: "edstem" },
+  edstem: { label: "Ed Lessons", icon: "E", className: "edstem" },
 };
 
 const $ = (selector) => document.querySelector(selector);

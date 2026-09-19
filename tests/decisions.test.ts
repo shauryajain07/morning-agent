@@ -28,14 +28,14 @@ describe("decision outputs", () => {
     expect(decisions).toEqual([]);
   });
 
-  it("gives articles a typed Jev-style worth-reading decision", async () => {
+  it("gives EdStem lessons a typed Jev-style worth-reading decision", async () => {
     const item: AgentItem = {
-      id: "edstem:test-thread",
+      id: "edstem:test-lesson",
       source: "edstem",
-      title: "A useful course discussion",
-      content: "A short thread excerpt.",
-      url: "https://us.edstem.org/us/courses/146267/discussion/42",
-      metadata: { kind: "thread", platform: "edstem" },
+      title: "A useful course lesson",
+      content: "A short lesson excerpt.",
+      url: "https://edstem.org/us/courses/146267/lessons/42",
+      metadata: { kind: "lesson", platform: "edstem" },
     };
 
     const decisions = await new MockDecisionEngine().evaluateItem(item);

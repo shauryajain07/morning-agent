@@ -80,28 +80,28 @@
             <button class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" type="button" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>waiting for your call</p></button>
           </div>
 
-          <div class="dashboard-grid dashboard-grid-bottom">
-            <article class="panel activity-panel">
-              <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">Latest changes</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
-              <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
-            </article>
-            <article class="panel next-panel">
-              <div class="panel-header"><div><span class="panel-kicker">Next up</span><h2>Deadlines</h2></div><button class="text-button" data-deadline-view type="button">View all ↗</button></div>
-              <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
-            </article>
-          </div>
-
-          <div class="dashboard-grid dashboard-grid-top">
-            <article class="panel pipeline-panel">
-              <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run status</span><h2 id="pipeline-title">Collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
-              <div class="pipeline" id="pipeline" aria-label="Collection stages"></div>
-              <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
-            </article>
-
-            <article class="panel review-panel">
-              <div class="panel-header"><div><span class="panel-kicker warm">Needs your call</span><h2>Review</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue" tabindex="-1">—</span></div>
-              <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
-            </article>
+          <div class="today-layout">
+            <div class="today-main-column">
+              <article class="panel activity-panel">
+                <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">Latest changes</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
+                <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
+              </article>
+              <article class="panel pipeline-panel">
+                <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run status</span><h2 id="pipeline-title">Collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
+                <div class="pipeline" id="pipeline" aria-label="Collection stages"></div>
+                <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
+              </article>
+            </div>
+            <div class="today-side-column">
+              <article class="panel next-panel">
+                <div class="panel-header"><div><span class="panel-kicker">Next up</span><h2>Deadlines</h2></div><button class="text-button" data-deadline-view type="button">View all ↗</button></div>
+                <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
+              </article>
+              <article class="panel review-panel">
+                <div class="panel-header"><div><span class="panel-kicker warm">Needs your call</span><h2>Review</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue" tabindex="-1">—</span></div>
+                <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
+              </article>
+            </div>
           </div>
         </section>
 

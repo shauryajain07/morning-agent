@@ -342,6 +342,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .stream-state { display: inline-flex; width: fit-content; padding: 4px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); font-size: 10px; }
 .stream-state.is-hot { color: var(--gold); border-color: rgba(216, 173, 105, .35); background: rgba(216, 173, 105, .08); }
 .stream-state.is-unread { color: var(--accent); border-color: rgba(106, 169, 255, .35); background: var(--accent-soft); }
+.stream-state.is-deadline { color: var(--coral); border-color: rgba(213, 150, 124, .35); background: rgba(213, 150, 124, .08); }
 .stream-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 20px 14px; color: var(--dim); font-size: 11px; }
 .load-more { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--accent); background: transparent; font-size: 11px; cursor: pointer; }
 .load-more:hover { border-color: var(--accent); background: var(--accent-soft); }

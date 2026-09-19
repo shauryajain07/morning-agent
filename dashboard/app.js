@@ -395,10 +395,11 @@ const renderStream = () => {
     const weakest = itemDecisions.slice().sort((left, right) => confidence(left) - confidence(right))[0];
     const hot = weakest && confidence(weakest) < 75;
     const unread = item.metadata?.unread === true;
+    const isDeadline = item.deadline !== undefined;
     const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
     const itemCourse = courseInfo(item);
-    const stateClass = hot ? "is-hot" : unread ? "is-unread" : "";
-    const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isLesson ? "lesson" : "observed";
+    const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "";
+    const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
     const subtitle = [itemCourse?.label, item.content ?? ""].filter(Boolean).join(" · ").slice(0, 120);
     return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");

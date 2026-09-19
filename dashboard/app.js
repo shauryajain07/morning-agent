@@ -51,6 +51,7 @@ const cleanDisplayText = (value) => String(value ?? "")
   .replace(/\bThere are no upcoming events\s+Go to calendar\.\.\./giu, " ")
   .replace(/\bSkip\s+ReadingList@HKUL(?:\s+ReadingList@HKUL)?\s+Reading list for\s+\S+\s+Close\s+Light Mode\s+\d+\s+JS\s+Open course index\s*/iu, " ")
   .replace(/\bSkip\s+ReadingList@HKUL\s+R\b/giu, " ")
+  .replace(/\bHome\s+Courses\s+\S*20\d{2}\S*\s+/iu, " ")
   .replace(/\s+/gu, " ")
   .trim();
 
@@ -567,7 +568,7 @@ const resourceMarkup = (item) => {
 const metadataMarkup = (item) => {
   const entries = Object.entries(item.metadata ?? {})
     .filter(([key, value]) => key !== "resources" && ["string", "number", "boolean"].includes(typeof value))
-    .filter(([key]) => !["contentHash", "platform"].includes(key))
+    .filter(([key]) => !["contentHash", "platform", "href"].includes(key))
     .slice(0, 8);
   if (entries.length === 0) return "";
   return `<div class="detail-meta">${entries.map(([key, value]) => `<span><b>${escapeHtml(humanize(key))}</b>${escapeHtml(value)}</span>`).join("")}</div>`;

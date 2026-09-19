@@ -159,7 +159,7 @@ describe("Moodle browser adapter", () => {
           {
             href: "https://moodle.example/mod/assign/view.php?id=43",
             text: "Participation assignment",
-            context: "Skip ReadingList@HKUL ReadingList@HKUL Reading list for _ENGG1330_1ABCDEFGHJKLMNO_2026 Close Light Mode 63 JS Open course index Home Courses Participation records",
+            context: "Skip ReadingList@HKUL ReadingList@HKUL Reading list for _ENGG1330_1ABCDEFGHJKLMNO_2026 Close Light Mode 63 JS Open course index Home Courses _ENGG1330_1ABCDEFGHJKLMNO_2026 Participation records",
             title: "",
             ariaLabel: "",
           },
@@ -168,7 +168,8 @@ describe("Moodle browser adapter", () => {
     ]);
 
     expect(result.assignments[0]?.content).not.toContain("ReadingList@HKUL");
-    expect(result.assignments[0]?.content).toContain("Home Courses Participation records");
+    expect(result.assignments[0]?.content).not.toContain("Home Courses");
+    expect(result.assignments[0]?.content).toContain("Participation records");
   });
 
   it("discovers bounded same-origin activity pages for nested files", () => {

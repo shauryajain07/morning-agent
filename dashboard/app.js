@@ -357,6 +357,12 @@ const filteredItems = () => {
 const renderStream = () => {
   const items = filteredItems();
   const decisions = state.data?.decisions ?? [];
+  const decisionsByItem = new Map();
+  for (const decision of decisions) {
+    const itemDecisions = decisionsByItem.get(decision.itemId) ?? [];
+    itemDecisions.push(decision);
+    decisionsByItem.set(decision.itemId, itemDecisions);
+  }
   const visibleItems = items.slice(0, state.streamLimit);
   const filterSuffix = state.query || state.course ? " · filtered" : "";
   $("#stream-result-count").textContent = `${items.length} item${items.length === 1 ? "" : "s"}${filterSuffix}`;
@@ -368,7 +374,7 @@ const renderStream = () => {
   }
   $("#stream-table").innerHTML = visibleItems.map((item) => {
     const meta = source(item.source);
-    const itemDecisions = decisions.filter((decision) => decision.itemId === item.id);
+    const itemDecisions = decisionsByItem.get(item.id) ?? [];
     const weakest = itemDecisions.slice().sort((left, right) => confidence(left) - confidence(right))[0];
     const hot = weakest && confidence(weakest) < 75;
     const unread = item.metadata?.unread === true;

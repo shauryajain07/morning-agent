@@ -254,6 +254,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .review-reason { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .review-actions { display: flex; gap: 7px; }
 .review-actions button { padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--muted); background: transparent; font-size: 11px; cursor: pointer; }
+.review-actions button:disabled { opacity: .5; cursor: wait; }
 .review-actions button:hover { color: var(--text); border-color: var(--accent); }
 .review-actions .approve { color: var(--lime); border-color: rgba(120, 199, 147, .35); }
 .plain-button { padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
@@ -384,6 +385,10 @@ h1 em { color: var(--accent); font-style: normal; }
   .workspace { padding: 0 24px 50px; }
   .dashboard-grid-top, .dashboard-grid-bottom { grid-template-columns: 1fr; }
   .overview-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {

@@ -261,6 +261,8 @@ h1 em { color: var(--accent); font-style: normal; }
 .review-empty, .empty-state { display: grid; place-items: center; min-height: 122px; padding: 20px; color: var(--dim); text-align: center; }
 .empty-state strong, .review-empty strong { display: block; color: var(--muted); font-size: 13px; font-weight: 500; }
 .empty-state p, .review-empty p { margin-top: 7px; font-size: 11px; line-height: 1.5; }
+.empty-action { margin-top: 14px; padding: 7px 10px; border: 1px solid rgba(106, 169, 255, .45); border-radius: 6px; color: var(--accent); background: var(--accent-soft); font-size: 11px; cursor: pointer; }
+.empty-action:hover { border-color: var(--accent); color: #fff; }
 
 .activity-panel, .next-panel { min-height: 274px; }
 .activity-list { padding: 0 20px 18px; }

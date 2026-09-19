@@ -237,7 +237,7 @@ const renderReviewQueue = () => {
     $("#review-list").innerHTML = '<div class="review-empty"><div><strong>Nothing to review.</strong><p>No low-confidence decisions are waiting for you.</p></div></div>';
     return;
   }
-  $("#review-list").innerHTML = queue.slice(0, 5).map((entry) => {
+  $("#review-list").innerHTML = queue.map((entry) => {
     const meta = source(entry.item.source);
     const percent = confidence(entry.decision);
     return `<article class="review-card">
@@ -367,7 +367,10 @@ const renderStream = () => {
   const filterSuffix = state.query || state.course ? " · filtered" : "";
   $("#stream-result-count").textContent = `${items.length} item${items.length === 1 ? "" : "s"}${filterSuffix}`;
   if (items.length === 0) {
-    $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No items here yet.</strong><p>Run a check or loosen the filter to see more of your day.</p></div></div>';
+    const clearAction = state.filter !== "all" || state.course !== "" || state.query !== ""
+      ? '<button class="empty-action" data-clear-filters type="button">Clear filters</button>'
+      : "";
+    $("#stream-table").innerHTML = `<div class="empty-state"><div><strong>No items here yet.</strong><p>Run a check or loosen the filter to see more of your day.</p>${clearAction}</div></div>`;
     $("#stream-pagination").textContent = "Showing 0 items";
     $("#stream-more").hidden = true;
     return;
@@ -483,6 +486,7 @@ const handleEvent = (event) => {
           ...previousRun,
           active: false,
           runId: payload.runId,
+          stage: "briefing",
           completedAt: payload.at,
           lastEventAt: payload.at,
           itemCount: payload.itemCount,
@@ -499,10 +503,11 @@ const handleEvent = (event) => {
     state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
     state.pipeline = {};
     if (state.data) {
+      const { completedAt: _previousCompletedAt, ...previousRun } = state.data.run;
       state.data = {
         ...state.data,
         run: {
-          ...state.data.run,
+          ...previousRun,
           active: false,
           runId: payload.runId,
           lastEventAt: payload.at,
@@ -548,6 +553,20 @@ const resolveReview = async (button) => {
     button.disabled = false;
     toast(error.message, "error");
   }
+};
+
+const clearFilters = () => {
+  state.filter = "all";
+  state.course = "";
+  state.query = "";
+  state.streamLimit = 50;
+  window.localStorage.removeItem("morning-agent:filter");
+  window.localStorage.removeItem("morning-agent:course");
+  $("#search-input").value = "";
+  $("#search-clear").hidden = true;
+  $("#course-filter").value = "";
+  syncFilterControls();
+  renderStream();
 };
 
 const selectView = (view) => {
@@ -607,6 +626,8 @@ $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   renderStream();
 }));
 document.addEventListener("click", (event) => {
+  const clearButton = event.target.closest("[data-clear-filters]");
+  if (clearButton) { clearFilters(); return; }
   const reviewButton = event.target.closest("[data-review-item]");
   if (reviewButton) { resolveReview(reviewButton); return; }
   const itemButton = event.target.closest("[data-open-item]");

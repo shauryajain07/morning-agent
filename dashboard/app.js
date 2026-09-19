@@ -416,6 +416,16 @@ const renderPipeline = () => {
   }).join("");
 };
 
+const updateLivePipeline = (stage, status) => {
+  const activeIndex = stages.indexOf(stage);
+  if (activeIndex < 0) return;
+  if (status === "started") {
+    for (let index = 0; index < activeIndex; index += 1) state.pipeline[stages[index]] = "completed";
+    for (let index = activeIndex + 1; index < stages.length; index += 1) delete state.pipeline[stages[index]];
+  }
+  state.pipeline[stage] = status;
+};
+
 const renderReviewQueue = () => {
   const queue = state.data?.lowConfidence ?? [];
   $("#queue-count").textContent = queue.length;
@@ -853,7 +863,7 @@ const handleEvent = (event) => {
     state.liveRunActive = true;
     state.liveStage = payload.stage ?? state.liveStage;
     state.liveLastEventAt = payload.at ?? state.liveLastEventAt;
-    state.pipeline[payload.stage] = payload.status;
+    updateLivePipeline(payload.stage, payload.status);
     const stageLabel = payload.stage === "jev" ? "Decide" : humanize(payload.stage);
     pushActivity(`${stageLabel} ${payload.status === "started" ? "started" : "complete"}`, payload.status === "started" ? "The local run is moving" : "Step complete", payload.status === "started" ? "lime" : "cyan", payload.at);
   } else if (payload.type === "items_collected") {

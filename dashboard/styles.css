@@ -108,16 +108,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, dialog:focus-vi
 .source-line:hover, .source-line.is-active { color: var(--text); background: rgba(255, 255, 255, .045); }
 .source-line b { color: var(--dim); font-size: 11px; font-weight: 500; }
 .source-glyph {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 0;
-  border-radius: 4px;
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 0 7px;
+  border-radius: 50%;
   color: var(--dim) !important;
-  background: transparent;
-  font-size: 10px;
-  font-weight: 650;
+  background: currentColor;
 }
 .source-glyph.email { border-color: rgba(120, 199, 147, .35); color: var(--lime) !important; }
 .source-glyph.moodle { border-color: rgba(170, 157, 204, .35); color: var(--violet) !important; }

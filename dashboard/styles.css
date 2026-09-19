@@ -337,7 +337,7 @@ h1 em { color: var(--accent); font-style: normal; }
 .focus-line { display: flex; justify-content: space-between; gap: 15px; padding: 11px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .focus-line strong { color: var(--text); font-weight: 600; }
 
-.stream-panel { overflow: clip; }
+.stream-panel { overflow: clip; scroll-margin-top: 86px; }
 .stream-header { align-items: end; }
 .stream-heading { min-width: 0; }
 .stream-result-count { display: inline-block; margin-top: 9px; color: var(--dim); font-size: 11px; }

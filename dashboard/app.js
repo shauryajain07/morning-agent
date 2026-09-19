@@ -1055,6 +1055,10 @@ const selectView = (view) => {
   if (!control && state.data !== null) renderActivityScope();
 };
 
+const revealActivityStream = () => {
+  window.requestAnimationFrame(() => $("#stream-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+};
+
 $("#run-button").addEventListener("click", () => runPulse(false));
 $("#data-retry").addEventListener("click", async () => {
   const button = $("#data-retry");
@@ -1110,6 +1114,7 @@ const openFilteredView = (filter) => {
   $("#search-clear").hidden = true;
   $("#course-filter").value = "";
   selectView("everything");
+  revealActivityStream();
 };
 const activateViewTarget = (button) => {
   if (button.dataset.filterTarget !== undefined) {
@@ -1123,11 +1128,15 @@ $("[data-deadline-view]").addEventListener("click", () => {
   state.filter = "deadlines";
   state.streamLimit = 50;
   selectView("everything");
+  revealActivityStream();
 });
 $$('[data-filter]').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
   state.streamLimit = 50;
-  if (button.closest(".source-stack") || state.view !== "everything") selectView("everything");
+  if (button.closest(".source-stack")) {
+    selectView("everything");
+    revealActivityStream();
+  } else if (state.view !== "everything") selectView("everything");
   else renderActivityScope();
 }));
 $("#filter-scroll")?.addEventListener("scroll", syncFilterScrollHint, { passive: true });

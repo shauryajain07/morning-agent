@@ -23,6 +23,20 @@ const booleanEnvironmentValue = (key: string): boolean | undefined => {
   throw new Error(`${key} must be true or false.`);
 };
 
+const boundedIntegerEnvironmentValue = (
+  key: string,
+  minimum: number,
+  maximum: number,
+): number | undefined => {
+  const value = nonEmptyEnvironmentValue(key);
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${key} must be an integer from ${minimum} to ${maximum}.`);
+  }
+  return parsed;
+};
+
 export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
   const baseUrl = nonEmptyEnvironmentValue("MOODLE_BASE_URL");
   const explicitEnabled = booleanEnvironmentValue("MOODLE_ENABLED");
@@ -58,6 +72,11 @@ export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
     }
     options.loginTimeoutMs = loginTimeoutMs;
   }
+
+  const navigationDelayMs = boundedIntegerEnvironmentValue("MOODLE_NAVIGATION_DELAY_MS", 0, 5_000);
+  if (navigationDelayMs !== undefined) options.navigationDelayMs = navigationDelayMs;
+  const settleDelayMs = boundedIntegerEnvironmentValue("MOODLE_SETTLE_DELAY_MS", 0, 5_000);
+  if (settleDelayMs !== undefined) options.settleDelayMs = settleDelayMs;
 
   const maxCoursePagesValue = nonEmptyEnvironmentValue("MOODLE_MAX_COURSE_PAGES");
   if (maxCoursePagesValue !== undefined) {

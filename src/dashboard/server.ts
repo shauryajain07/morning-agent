@@ -16,6 +16,7 @@ import {
   type MorningRunRecord,
   type MorningRunStage,
   type ReviewStatus,
+  type RunSourceStatus,
   type StoredAgentItem,
 } from "../types/index.js";
 
@@ -24,6 +25,14 @@ const defaultHost = "127.0.0.1";
 const defaultPort = 4_782;
 const lowConfidenceThreshold = 0.75;
 const validMoodleAssignmentPath = /\/mod\/(?:assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
+const noisyMoodleAssignmentQuery = [
+  "comment_itemid",
+  "commentcontext",
+  "comment_component",
+  "comment_area",
+  "useridlistid",
+  "rownum",
+];
 
 const decisionNames = new Set<DecisionName>([
   "requiresAction",
@@ -52,6 +61,12 @@ type DashboardRunState = {
   decisionCount?: number;
   actionCount?: number;
   error?: string;
+  sourceProgress?: Record<string, {
+    label: string;
+    status: RunSourceStatus;
+    detail?: string;
+    updatedAt: string;
+  }>;
 };
 
 type DashboardEvent =
@@ -158,10 +173,25 @@ const dashboardRunStateFromRecord = (
   };
 };
 
+const recoverStaleRun = (store: MorningAgentStore): MorningRunRecord | undefined => {
+  const latest = store.getLatestRun();
+  if (latest === undefined || latest.status !== "running") return latest;
+  const now = new Date();
+  const recovered: MorningRunRecord = {
+    ...latest,
+    status: "failed",
+    lastEventAt: now,
+    completedAt: now,
+    error: "The previous run stopped unexpectedly. No external action was performed.",
+  };
+  store.recordRun(recovered);
+  return recovered;
+};
+
 const loadPersistedRunState = (): DashboardRunState => {
   const store = createStore({ dbPath: defaultSettings.databasePath });
   try {
-    return dashboardRunStateFromRecord(store.getLatestRun());
+    return dashboardRunStateFromRecord(recoverStaleRun(store));
   } finally {
     store.close();
   }
@@ -225,8 +255,28 @@ const applyRunEvent = (event: MorningRunEvent): void => {
         runId: event.runId,
         startedAt: event.at,
         lastEventAt: event.at,
+        sourceProgress: {},
       };
       break;
+    case "source_progress": {
+      const progress = {
+        label: event.label,
+        status: event.status,
+        ...(event.detail === undefined ? {} : { detail: event.detail }),
+        updatedAt: event.at,
+      };
+      runState = {
+        ...runState,
+        active: true,
+        runId: event.runId,
+        lastEventAt: event.at,
+        sourceProgress: {
+          ...(runState.sourceProgress ?? {}),
+          [event.source]: progress,
+        },
+      };
+      break;
+    }
     case "stage":
       runState = {
         ...runState,
@@ -299,7 +349,13 @@ const isStaleMoodleAssignment = (item: StoredAgentItem): boolean => {
   if (item.source !== "moodle" || item.metadata.kind !== "assignment") return false;
   if (item.url === undefined) return true;
   try {
-    return !validMoodleAssignmentPath.test(new URL(item.url).pathname.toLowerCase());
+    const url = new URL(item.url);
+    if (!validMoodleAssignmentPath.test(url.pathname.toLowerCase())) return true;
+    if (noisyMoodleAssignmentQuery.some((key) => url.searchParams.has(key))) return true;
+    // Older crawls used a fallback title when they reached an assignment
+    // submission/comment page. Keep those legacy records out of the live
+    // dashboard without deleting them from the local history.
+    return item.title.trim().toLowerCase() === "moodle assignment" && item.metadata.course === undefined;
   } catch {
     return true;
   }

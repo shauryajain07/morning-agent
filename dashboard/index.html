@@ -90,6 +90,11 @@
                 <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run status</span><h2 id="pipeline-title">Collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
                 <div class="pipeline" id="pipeline" aria-label="Collection stages"></div>
                 <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
+                <div class="source-progress-panel" id="source-progress-panel" aria-live="polite">
+                  <div class="source-progress-head"><span>Source path</span><span id="source-progress-status">Waiting</span></div>
+                  <div class="source-progress-list" id="source-progress-list"></div>
+                  <p class="next-action" id="next-action">Run a check to see the source order.</p>
+                </div>
               </article>
             </div>
             <div class="today-side-column">
@@ -147,6 +152,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-61"></script>
+    <script type="module" src="/app.js?rev=20260920-62"></script>
   </body>
 </html>

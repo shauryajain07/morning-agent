@@ -4,6 +4,16 @@ import { join, resolve } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import { parseMoodleDate } from "./moodleBrowser.js";
+import {
+  BrowserSessionError,
+  closeWithTimeout,
+  defaultNavigationDelayMs,
+  defaultSettleDelayMs,
+  isBrowserFailure,
+  type BrowserNavigationProgress,
+  waitBeforeNavigation,
+  waitForPageReady,
+} from "./browserReliability.js";
 import type { AgentItem } from "../types/index.js";
 import { cleanText } from "./text.js";
 
@@ -34,9 +44,12 @@ export type EdStemBrowserOptions = {
   headless?: boolean;
   timeoutMs?: number;
   loginTimeoutMs?: number;
+  navigationDelayMs?: number;
+  settleDelayMs?: number;
   lookbackHours?: number;
   maxCoursePages?: number;
   maxLessonPages?: number;
+  onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
 export class EdStemAuthenticationRequiredError extends Error {
@@ -242,6 +255,11 @@ export class EdStemBrowserSession {
   private ownsContext = false;
   private readonly timeoutMs: number;
   private readonly loginTimeoutMs: number;
+  private readonly navigationDelayMs: number;
+  private readonly settleDelayMs: number;
+  private lastNavigationAt = 0;
+  private failure: BrowserSessionError | undefined;
+  private closing = false;
 
   public constructor(private readonly options: EdStemBrowserOptions) {
     const baseUrl = new URL(options.baseUrl);
@@ -250,10 +268,14 @@ export class EdStemBrowserSession {
     }
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.loginTimeoutMs = options.loginTimeoutMs ?? defaultLoginTimeoutMs;
+    this.navigationDelayMs = Math.max(0, options.navigationDelayMs ?? defaultNavigationDelayMs);
+    this.settleDelayMs = Math.max(0, options.settleDelayMs ?? defaultSettleDelayMs);
   }
 
   public async open(): Promise<Page> {
+    if (this.failure !== undefined) throw this.failure;
     if (this.page !== undefined && !this.page.isClosed()) return this.page;
+    this.closing = false;
 
     if (this.options.cdpUrl !== undefined) {
       this.browser = await chromium.connectOverCDP(this.options.cdpUrl);
@@ -272,8 +294,21 @@ export class EdStemBrowserSession {
     }
 
     this.context.setDefaultTimeout(this.timeoutMs);
+    this.context.on("close", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("EdStem's browser context closed unexpectedly.");
+    });
+    this.browser?.on("disconnected", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("EdStem's browser disconnected unexpectedly.");
+    });
     this.page = await this.context.newPage();
+    this.page.on("crash", () => {
+      this.failure ??= new BrowserSessionError("EdStem's browser page crashed.");
+    });
     return this.page;
+  }
+
+  public isBroken(): boolean {
+    return this.failure !== undefined || this.page?.isClosed() === true;
   }
 
   public async goto(targetUrl: string): Promise<EdStemPageSnapshot> {
@@ -283,13 +318,31 @@ export class EdStemBrowserSession {
     }
 
     const page = await this.open();
-    await page.goto(target.toString(), {
-      waitUntil: "domcontentloaded",
-      timeout: this.timeoutMs,
-    });
-    await page.waitForLoadState("networkidle", { timeout: Math.min(this.timeoutMs, 2_000) }).catch(() => {});
-    await this.waitForAuthentication(page);
-    return snapshotPage(page);
+    this.lastNavigationAt = await waitBeforeNavigation(page, this.lastNavigationAt, this.navigationDelayMs);
+    this.options.onProgress?.({ phase: "navigating", url: target.toString() });
+    try {
+      await page.goto(target.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: this.timeoutMs,
+      });
+      await waitForPageReady(page, this.timeoutMs, this.settleDelayMs);
+      await this.waitForAuthentication(page);
+      const snapshot = await snapshotPage(page);
+      this.options.onProgress?.({
+        phase: "ready",
+        url: target.toString(),
+        ...(snapshot.title.length === 0 ? {} : { title: snapshot.title }),
+      });
+      return snapshot;
+    } catch (error: unknown) {
+      if (isBrowserFailure(error) || this.isBroken()) {
+        this.failure ??= error instanceof BrowserSessionError
+          ? error
+          : new BrowserSessionError("EdStem's browser session became unavailable.", error);
+      }
+      this.options.onProgress?.({ phase: "failed", url: target.toString() });
+      throw error;
+    }
   }
 
   private async isAuthenticationPage(page: Page): Promise<boolean> {
@@ -337,10 +390,11 @@ export class EdStemBrowserSession {
   }
 
   public async close(): Promise<void> {
+    this.closing = true;
     const page = this.page;
     this.page = undefined;
-    await page?.close().catch(() => {});
-    if (this.ownsContext) await this.context?.close().catch(() => {});
+    await closeWithTimeout(page?.close());
+    if (this.ownsContext) await closeWithTimeout(this.context?.close());
     // An attached browser belongs to the user; only close the collector's tab.
     this.browser = undefined;
     this.context = undefined;
@@ -607,10 +661,21 @@ export const collectEdStemLessonItemsFromBrowser = async (
     rememberCourseLabels(snapshot, courseLabels);
     return snapshot;
   };
+  const visitSafely = async (url: string): Promise<EdStemPageSnapshot | undefined> => {
+    try {
+      return await visit(url);
+    } catch (error: unknown) {
+      if (error instanceof EdStemAuthenticationRequiredError || session.isBroken()) throw error;
+      // A failed home page means the source never became readable. Surface it
+      // to the source boundary instead of silently reporting an empty source.
+      if (snapshots.length === 0) throw error;
+      return undefined;
+    }
+  };
 
   try {
     const entryUrls = uniqueUrls([options.baseUrl, ...(options.courseUrls ?? [])], options.baseUrl);
-    for (const entryUrl of entryUrls.slice(0, maxCoursePages)) await visit(entryUrl);
+    for (const entryUrl of entryUrls.slice(0, maxCoursePages)) await visitSafely(entryUrl);
 
     const courseUrls = uniqueUrls(
       [
@@ -620,20 +685,20 @@ export const collectEdStemLessonItemsFromBrowser = async (
       options.baseUrl,
     );
     for (const courseUrl of courseUrls.slice(0, maxCoursePages)) {
-      await visit(courseUrl);
+      await visitSafely(courseUrl);
     }
 
     const indexUrls = uniqueUrls(
       snapshots.flatMap((snapshot) => discoverEdStemLessonIndexLinks(snapshot, options.baseUrl)),
       options.baseUrl,
     );
-    for (const indexUrl of indexUrls.slice(0, maxCoursePages)) await visit(indexUrl);
+    for (const indexUrl of indexUrls.slice(0, maxCoursePages)) await visitSafely(indexUrl);
 
     const lessonUrls = uniqueUrls(
       snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
       options.baseUrl,
     );
-    for (const lessonUrl of lessonUrls.slice(0, maxLessonPages)) await visit(lessonUrl);
+    for (const lessonUrl of lessonUrls.slice(0, maxLessonPages)) await visitSafely(lessonUrl);
 
     // A course or lesson page can lazy-load another lesson list after navigation.
     // Take one final bounded discovery pass without clicking or submitting anything.
@@ -641,7 +706,7 @@ export const collectEdStemLessonItemsFromBrowser = async (
       snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
       options.baseUrl,
     );
-    for (const lessonUrl of lateLessonUrls.slice(0, maxLessonPages)) await visit(lessonUrl);
+    for (const lessonUrl of lateLessonUrls.slice(0, maxLessonPages)) await visitSafely(lessonUrl);
 
     return extractEdStemLessonItems(snapshots, now, options.lookbackHours ?? defaultLookbackHours, courseLabels);
   } finally {

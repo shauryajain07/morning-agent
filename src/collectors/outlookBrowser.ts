@@ -4,6 +4,16 @@ import { join, resolve } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import { parseMoodleDate } from "./moodleBrowser.js";
+import {
+  BrowserSessionError,
+  closeWithTimeout,
+  defaultNavigationDelayMs,
+  defaultSettleDelayMs,
+  isBrowserFailure,
+  type BrowserNavigationProgress,
+  waitBeforeNavigation,
+  waitForPageReady,
+} from "./browserReliability.js";
 import type { AgentItem } from "../types/index.js";
 
 export type OutlookMessageSnapshot = {
@@ -22,8 +32,11 @@ export type OutlookBrowserOptions = {
   headless?: boolean;
   timeoutMs?: number;
   loginTimeoutMs?: number;
+  navigationDelayMs?: number;
+  settleDelayMs?: number;
   lookbackHours?: number;
   maxScrolls?: number;
+  onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
 export class OutlookAuthenticationRequiredError extends Error {
@@ -134,6 +147,11 @@ export class OutlookBrowserSession {
   private ownsContext = false;
   private readonly timeoutMs: number;
   private readonly loginTimeoutMs: number;
+  private readonly navigationDelayMs: number;
+  private readonly settleDelayMs: number;
+  private lastNavigationAt = 0;
+  private failure: BrowserSessionError | undefined;
+  private closing = false;
 
   public constructor(private readonly options: OutlookBrowserOptions) {
     const baseUrl = new URL(options.baseUrl);
@@ -144,10 +162,14 @@ export class OutlookBrowserSession {
     }
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.loginTimeoutMs = options.loginTimeoutMs ?? defaultLoginTimeoutMs;
+    this.navigationDelayMs = Math.max(0, options.navigationDelayMs ?? defaultNavigationDelayMs);
+    this.settleDelayMs = Math.max(0, options.settleDelayMs ?? defaultSettleDelayMs);
   }
 
   public async open(): Promise<Page> {
+    if (this.failure !== undefined) throw this.failure;
     if (this.page !== undefined && !this.page.isClosed()) return this.page;
+    this.closing = false;
 
     if (this.options.cdpUrl !== undefined) {
       this.browser = await chromium.connectOverCDP(this.options.cdpUrl);
@@ -166,29 +188,59 @@ export class OutlookBrowserSession {
     }
 
     this.context.setDefaultTimeout(this.timeoutMs);
+    this.context.on("close", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("Outlook's browser context closed unexpectedly.");
+    });
+    this.browser?.on("disconnected", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("Outlook's browser disconnected unexpectedly.");
+    });
     this.page = await this.context.newPage();
+    this.page.on("crash", () => {
+      this.failure ??= new BrowserSessionError("Outlook's browser page crashed.");
+    });
     return this.page;
+  }
+
+  public isBroken(): boolean {
+    return this.failure !== undefined || this.page?.isClosed() === true;
   }
 
   public async gotoInbox(): Promise<OutlookMessageSnapshot[]> {
     const page = await this.open();
-    await page.goto(this.options.baseUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: this.timeoutMs,
-    });
-    await page.waitForLoadState("networkidle", { timeout: Math.min(this.timeoutMs, 2_000) }).catch(() => {});
-    await this.waitForAuthentication(page);
+    this.lastNavigationAt = await waitBeforeNavigation(page, this.lastNavigationAt, this.navigationDelayMs);
+    this.options.onProgress?.({ phase: "navigating", url: this.options.baseUrl });
+    try {
+      await page.goto(this.options.baseUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: this.timeoutMs,
+      });
+      await waitForPageReady(page, this.timeoutMs, this.settleDelayMs);
+      await this.waitForAuthentication(page);
 
-    const snapshots: OutlookMessageSnapshot[] = [];
-    const maxScrolls = this.options.maxScrolls ?? defaultMaxScrolls;
-    for (let index = 0; index <= maxScrolls; index += 1) {
-      snapshots.push(...(await snapshotPage(page)));
-      if (index === maxScrolls) break;
-      const moved = (await page.evaluate(scrollScript)) as boolean;
-      if (!moved) break;
-      await page.waitForTimeout(350);
+      const snapshots: OutlookMessageSnapshot[] = [];
+      const maxScrolls = this.options.maxScrolls ?? defaultMaxScrolls;
+      for (let index = 0; index <= maxScrolls; index += 1) {
+        snapshots.push(...(await snapshotPage(page)));
+        this.options.onProgress?.({
+          phase: "ready",
+          url: this.options.baseUrl,
+          title: "Inbox page " + String(index + 1),
+        });
+        if (index === maxScrolls) break;
+        const moved = (await page.evaluate(scrollScript)) as boolean;
+        if (!moved) break;
+        await page.waitForTimeout(this.settleDelayMs);
+      }
+      return uniqueSnapshots(snapshots);
+    } catch (error: unknown) {
+      if (isBrowserFailure(error) || this.isBroken()) {
+        this.failure ??= error instanceof BrowserSessionError
+          ? error
+          : new BrowserSessionError("Outlook's browser session became unavailable.", error);
+      }
+      this.options.onProgress?.({ phase: "failed", url: this.options.baseUrl });
+      throw error;
     }
-    return uniqueSnapshots(snapshots);
   }
 
   private async isAuthenticationPage(page: Page): Promise<boolean> {
@@ -225,10 +277,11 @@ export class OutlookBrowserSession {
   }
 
   public async close(): Promise<void> {
+    this.closing = true;
     const page = this.page;
     this.page = undefined;
-    await page?.close().catch(() => {});
-    if (this.ownsContext) await this.context?.close().catch(() => {});
+    await closeWithTimeout(page?.close());
+    if (this.ownsContext) await closeWithTimeout(this.context?.close());
     // An attached Chrome belongs to the user; only close the collector's tab.
     this.browser = undefined;
     this.context = undefined;

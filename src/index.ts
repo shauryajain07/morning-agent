@@ -20,6 +20,7 @@ import { JevDecisionEngine } from "./decisions/engine.js";
 import { MockDecisionEngine } from "./decisions/mock.js";
 import { createStore, type MorningAgentStore } from "./storage/db.js";
 import { parseAgentItems } from "./types/schema.js";
+import type { BrowserNavigationProgress } from "./collectors/browserReliability.js";
 import type {
   ActionRecord,
   AgentItem,
@@ -27,6 +28,8 @@ import type {
   MorningRunEvent,
   MorningRunRecord,
   MorningRunStage,
+  RunSourceKey,
+  RunSourceStatus,
   RunOptions,
 } from "./types/index.js";
 import {
@@ -68,6 +71,28 @@ const stageLabels: Record<MorningRunStage, string> = {
   briefing: "BRIEFING",
 };
 
+const sourceLabels: Record<RunSourceKey, string> = {
+  downloads: "Files",
+  calendar: "Calendar",
+  gmail: "Gmail",
+  github: "GitHub",
+  news: "Daily news",
+  edstem: "Ed Lessons",
+  moodle: "Moodle",
+  outlook: "Outlook",
+};
+
+const sourceOrder: RunSourceKey[] = [
+  "downloads",
+  "calendar",
+  "gmail",
+  "github",
+  "news",
+  "edstem",
+  "moodle",
+  "outlook",
+];
+
 const emitRunEvent = (options: RunOptions, event: MorningRunEvent): void => {
   options.onEvent?.(event);
 };
@@ -78,36 +103,113 @@ const isMissingPathError = (error: unknown): boolean =>
   "code" in error &&
   error.code === "ENOENT";
 
+type SourceProgressReporter = (progress: {
+  source: RunSourceKey;
+  label: string;
+  status: RunSourceStatus;
+  detail?: string;
+}) => void;
+
+const browserProgressDetail = (progress: BrowserNavigationProgress): string => {
+  let route = "the next page";
+  try {
+    route = new URL(progress.url).pathname || "/";
+  } catch {
+    // Keep the progress event useful even if a provider returns a malformed URL.
+  }
+  if (progress.phase === "navigating") return "Opening " + route;
+  if (progress.phase === "failed") return "Browser page failed at " + route + "; stopping this source safely";
+  return progress.title === undefined ? "Read " + route : "Read " + progress.title + " · " + route;
+};
+
 const collectOptionalSource = async (
+  source: RunSourceKey,
   label: string,
   collector: () => Promise<AgentItem[]>,
+  report: SourceProgressReporter,
 ): Promise<AgentItem[]> => {
+  report({ source, label, status: "starting", detail: "Preparing source" });
   try {
-    return await collector();
+    report({ source, label, status: "reading", detail: "Reading without making changes" });
+    const items = await collector();
+    report({
+      source,
+      label,
+      status: "completed",
+      detail: String(items.length) + " item" + (items.length === 1 ? "" : "s") + " found",
+    });
+    return items;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "unknown error";
-    console.warn(`[${label}] skipped: ${message}`);
+    console.warn("[" + label + "] skipped: " + message);
+    report({ source, label, status: "failed", detail: message });
     return [];
   }
 };
 
-const collectRealItems = async (): Promise<AgentItem[]> => {
-  const moodle = new HKUMoodleProvider(moodleOptionsFromEnvironment());
-  const downloads = await collectDownloads().catch((error: unknown) => {
-    if (isMissingPathError(error)) return [];
-    throw error;
-  });
-  const [calendar, email, outlookEmail, github, edstem, news, announcements, assignments, courseFiles] = await Promise.all([
-    collectCalendarItems(),
-    collectEmailItems(),
-    collectOutlookEmailItems(),
-    collectOptionalSource("GitHub", collectGitHubItems),
-    collectOptionalSource("EdStem", collectEdStemItems),
-    collectOptionalSource("News", collectNewsItems),
-    moodle.getAnnouncements(),
-    moodle.getAssignments(),
-    moodle.getCourseFiles(),
+const collectRealItems = async (report: SourceProgressReporter = () => {}): Promise<AgentItem[]> => {
+  const downloads = await collectOptionalSource("downloads", "Files", async () => {
+    try {
+      return await collectDownloads();
+    } catch (error: unknown) {
+      if (isMissingPathError(error)) return [];
+      throw error;
+    }
+  }, report);
+  const [calendar, email, github, news] = await Promise.all([
+    collectOptionalSource("calendar", "Calendar", collectCalendarItems, report),
+    collectOptionalSource("gmail", "Gmail", collectEmailItems, report),
+    collectOptionalSource("github", "GitHub", collectGitHubItems, report),
+    collectOptionalSource("news", "Daily news", collectNewsItems, report),
   ]);
+
+  // Browser-backed sources are deliberately serialized. Persistent Chromium
+  // profiles are expensive and often crash when several contexts open and
+  // close at the same time on macOS.
+  const edstem = await collectOptionalSource(
+    "edstem",
+    "Ed Lessons",
+    () => collectEdStemItems((progress) => report({
+      source: "edstem",
+      label: "Ed Lessons",
+      status: progress.phase === "failed" ? "failed" : "reading",
+      detail: browserProgressDetail(progress),
+    })),
+    report,
+  );
+  const moodleItems = await collectOptionalSource(
+    "moodle",
+    "Moodle",
+    async () => {
+      const moodle = new HKUMoodleProvider({
+        ...moodleOptionsFromEnvironment(),
+        onProgress: (progress) => report({
+          source: "moodle",
+          label: "Moodle",
+          status: progress.phase === "failed" ? "failed" : "reading",
+          detail: browserProgressDetail(progress),
+        }),
+      });
+      const collection = await Promise.all([
+        moodle.getAnnouncements(),
+        moodle.getAssignments(),
+        moodle.getCourseFiles(),
+      ]);
+      return collection.flat();
+    },
+    report,
+  );
+  const outlookEmail = await collectOptionalSource(
+    "outlook",
+    "Outlook",
+    () => collectOutlookEmailItems((progress) => report({
+      source: "outlook",
+      label: "Outlook",
+      status: progress.phase === "failed" ? "failed" : "reading",
+      detail: browserProgressDetail(progress),
+    })),
+    report,
+  );
   return [
     ...calendar,
     ...downloads,
@@ -116,9 +218,7 @@ const collectRealItems = async (): Promise<AgentItem[]> => {
     ...github,
     ...edstem,
     ...news,
-    ...announcements,
-    ...assignments,
-    ...courseFiles,
+    ...moodleItems,
   ];
 };
 
@@ -232,8 +332,40 @@ export const runMorning = async (options: RunOptions): Promise<string> => {
   try {
     emit({ type: "run_started", runId, at: now.toISOString() });
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "started", label: stageLabels.collect });
+    for (const source of sourceOrder) {
+      emit({
+        type: "source_progress",
+        runId,
+        at: new Date().toISOString(),
+        source,
+        label: sourceLabels[source],
+        status: "queued",
+        detail: "Waiting for its turn",
+      });
+    }
     logStage(options.verbose, "COLLECT");
-    const collected = options.mock ? await collectMockItems() : await collectRealItems();
+    let collected: AgentItem[];
+    if (options.mock) {
+      for (const source of sourceOrder) {
+        emit({
+          type: "source_progress",
+          runId,
+          at: new Date().toISOString(),
+          source,
+          label: sourceLabels[source],
+          status: "skipped",
+          detail: "Demo run; external source was not opened",
+        });
+      }
+      collected = await collectMockItems();
+    } else {
+      collected = await collectRealItems((progress) => emit({
+        type: "source_progress",
+        runId,
+        at: new Date().toISOString(),
+        ...progress,
+      }));
+    }
     logStage(options.verbose, `Collected ${collected.length} item(s)`);
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "collect", status: "completed", label: stageLabels.collect });
     emit({ type: "items_collected", runId, at: new Date().toISOString(), count: collected.length });

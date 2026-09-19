@@ -20,6 +20,7 @@ const state = {
   view: "control",
   events: [],
   pipeline: {},
+  sourceProgress: {},
   liveRunId: "",
   liveRunActive: false,
   liveStage: "",
@@ -34,6 +35,24 @@ let runStarting = false;
 let runStartTimer = 0;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
+const sourcePlan = [
+  { key: "downloads", label: "Files" },
+  { key: "calendar", label: "Calendar" },
+  { key: "gmail", label: "Gmail" },
+  { key: "github", label: "GitHub" },
+  { key: "news", label: "Daily news" },
+  { key: "edstem", label: "Ed Lessons" },
+  { key: "moodle", label: "Moodle" },
+  { key: "outlook", label: "Outlook" },
+];
+const sourceStatusLabels = {
+  queued: "Queued",
+  starting: "Starting",
+  reading: "Reading",
+  completed: "Done",
+  skipped: "Skipped",
+  failed: "Needs attention",
+};
 const sourceMeta = {
   email: { label: "Inbox", icon: "@", className: "email" },
   moodle: { label: "Moodle", icon: "M", className: "moodle" },
@@ -296,6 +315,9 @@ const renderUnavailable = () => {
   $("#stream-result-count").textContent = "Unavailable";
   $("#stream-pagination").textContent = "Unavailable";
   $("#pipeline").innerHTML = '<div class="pipeline-message is-error"><strong>Collection unavailable.</strong><span>Reconnect to see the run stages.</span></div>';
+  $("#source-progress-status").textContent = "Unavailable";
+  $("#source-progress-list").innerHTML = '<div class="source-progress-empty">Source progress is unavailable until the local service reconnects.</div>';
+  $("#next-action").textContent = "Reconnect to restore the local run monitor.";
   const button = $("#run-button");
   button.disabled = true;
   button.classList.remove("is-loading");
@@ -410,7 +432,7 @@ const renderHeader = () => {
   pipelinePanel?.classList.toggle("is-idle", !runBusy && !run.error && !run.completedAt && hasSnapshot);
   $("#status-caption").classList.toggle("is-stale", isStaleSnapshot && !runBusy && !run.error);
   $("#status-caption").textContent = run.active
-    ? "Checking your latest sources."
+    ? sourceRunCaption(run) || "Preparing the next source."
     : runStarting
       ? "Starting a local collection."
     : run.error
@@ -472,6 +494,56 @@ const renderPipeline = () => {
       <span class="pipeline-label">${escapeHtml(stageLabels[stage] ?? humanize(stage))}</span>
     </div>`;
   }).join("");
+};
+
+const sourceProgressEntry = (key) => state.sourceProgress?.[key] ?? null;
+
+const sourceRunCaption = (run) => {
+  if (!run.active) return "";
+  const active = sourcePlan.find((entry) => ["starting", "reading"].includes(sourceProgressEntry(entry.key)?.status));
+  if (active === undefined) return "Preparing the next source.";
+  const progress = sourceProgressEntry(active.key);
+  const detail = progress?.detail ?? "Reading without making changes";
+  const next = sourcePlan.find((entry) => sourceProgressEntry(entry.key)?.status === "queued");
+  return next === undefined
+    ? active.label + ": " + detail + "."
+    : active.label + ": " + detail + ". Next: " + next.label + ".";
+};
+
+const renderSourceProgress = () => {
+  const list = $("#source-progress-list");
+  const panel = $("#source-progress-panel");
+  if (!list || !panel) return;
+  const run = effectiveRun();
+  const hasProgress = Object.keys(state.sourceProgress ?? {}).length > 0;
+  panel.classList.toggle("is-active", run.active);
+  if (!hasProgress && !run.active) {
+    $("#source-progress-status").textContent = "Waiting";
+    list.innerHTML = '<div class="source-progress-empty">Source order appears here during a run.</div>';
+    $("#next-action").textContent = "Run a check to see each source move from queued to complete.";
+    return;
+  }
+  const activeEntry = sourcePlan.find((entry) => ["starting", "reading"].includes(sourceProgressEntry(entry.key)?.status));
+  $("#source-progress-status").textContent = run.active
+    ? activeEntry === undefined ? "Preparing" : "In progress"
+    : run.error ? "Needs attention" : "Last run";
+  list.innerHTML = sourcePlan.map((entry) => {
+    const progress = sourceProgressEntry(entry.key);
+    const status = progress?.status ?? (run.active ? "queued" : "skipped");
+    const statusLabel = sourceStatusLabels[status] ?? "Waiting";
+    const detail = progress?.detail ?? (status === "queued" ? "Waiting for its turn" : "Not run yet");
+    return '<div class="source-progress-row is-' + escapeHtml(status) + '">' +
+      '<span class="source-progress-dot" aria-hidden="true"></span>' +
+      '<span class="source-progress-name">' + escapeHtml(entry.label) + '</span>' +
+      '<span class="source-progress-detail">' + escapeHtml(detail) + '</span>' +
+      '<span class="source-progress-state">' + escapeHtml(statusLabel) + '</span>' +
+      '</div>';
+  }).join("");
+  $("#next-action").textContent = run.active
+    ? sourceRunCaption(run)
+    : run.error
+      ? "The source that failed is isolated; run again after fixing that source."
+      : "All planned sources have reached a completion state.";
 };
 
 const updateLivePipeline = (stage, status) => {
@@ -865,6 +937,7 @@ const render = () => {
   renderMetrics();
   renderHeader();
   renderPipeline();
+  renderSourceProgress();
   renderReviewQueue();
   renderActivity();
   renderDeadlines();
@@ -904,6 +977,7 @@ const handleEvent = (event) => {
     state.liveStage = run.stage ?? "";
     state.liveLastEventAt = run.lastEventAt ?? run.startedAt ?? "";
     state.pipeline = {};
+    state.sourceProgress = run.sourceProgress ?? {};
     if (state.liveRunActive && state.liveStage) {
       const activeIndex = stages.indexOf(state.liveStage);
       for (let index = 0; index < activeIndex; index += 1) state.pipeline[stages[index]] = "completed";
@@ -917,7 +991,26 @@ const handleEvent = (event) => {
     state.liveStage = "collect";
     state.liveLastEventAt = payload.at ?? "";
     state.pipeline = { collect: "started" };
+    state.sourceProgress = {};
     pushActivity("Run started", "Checking the local sources", "cyan", payload.at);
+  } else if (payload.type === "source_progress") {
+    state.sourceProgress = {
+      ...state.sourceProgress,
+      [payload.source]: {
+        label: payload.label,
+        status: payload.status,
+        ...(payload.detail === undefined ? {} : { detail: payload.detail }),
+        updatedAt: payload.at,
+      },
+    };
+    if (["starting", "completed", "failed"].includes(payload.status)) {
+      pushActivity(
+        payload.label + " " + (payload.status === "completed" ? "complete" : payload.status),
+        payload.detail ?? "Source progress updated",
+        payload.status === "failed" ? "coral" : payload.status === "completed" ? "cyan" : "lime",
+        payload.at,
+      );
+    }
   } else if (payload.type === "stage") {
     state.liveRunId = payload.runId ?? state.liveRunId;
     state.liveRunActive = true;
@@ -984,6 +1077,7 @@ const handleEvent = (event) => {
   }
   renderHeader();
   renderPipeline();
+  renderSourceProgress();
 };
 
 const runPulse = async (mock = false) => {
@@ -1179,7 +1273,7 @@ const connectEvents = () => {
     ? connectionStatus === "reconnecting" ? "reconnecting" : "connecting"
     : "live");
   stream.onerror = () => setConnectionStatus("reconnecting");
-  ["run_snapshot", "run_started", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
+  ["run_snapshot", "run_started", "source_progress", "stage", "items_collected", "decisions_completed", "actions_completed", "run_completed", "run_failed", "state_invalidated"].forEach((name) => stream.addEventListener(name, handleEvent));
 };
 
 const tickClock = () => {

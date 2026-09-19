@@ -3,6 +3,7 @@ import {
   collectEdStemLessonItemsFromBrowser,
   type EdStemBrowserOptions,
 } from "./edstemBrowser.js";
+import type { BrowserNavigationProgress } from "./browserReliability.js";
 
 export type EdStemCollectorOptions = Omit<EdStemBrowserOptions, "baseUrl"> & {
   enabled: boolean;
@@ -55,6 +56,8 @@ export const edStemOptionsFromEnvironment = (): EdStemCollectorOptions => {
     lookbackHours: boundedIntegerEnvironmentValue("EDSTEM_LOOKBACK_HOURS", 1, 168, 24),
     maxCoursePages: boundedIntegerEnvironmentValue("EDSTEM_MAX_COURSE_PAGES", 1, 500, 100),
     maxLessonPages: boundedIntegerEnvironmentValue("EDSTEM_MAX_LESSON_PAGES", 1, 2_000, 500),
+    navigationDelayMs: boundedIntegerEnvironmentValue("EDSTEM_NAVIGATION_DELAY_MS", 0, 5_000, 350),
+    settleDelayMs: boundedIntegerEnvironmentValue("EDSTEM_SETTLE_DELAY_MS", 0, 5_000, 300),
   };
 
   const profileDirectory = nonEmptyEnvironmentValue("EDSTEM_BROWSER_PROFILE");
@@ -69,8 +72,11 @@ export const edStemOptionsFromEnvironment = (): EdStemCollectorOptions => {
   return options;
 };
 
-export const collectEdStemItems = async (): Promise<AgentItem[]> => {
+export const collectEdStemItems = async (
+  onProgress?: (progress: BrowserNavigationProgress) => void,
+): Promise<AgentItem[]> => {
   const options = edStemOptionsFromEnvironment();
   if (!options.enabled) return [];
+  if (onProgress !== undefined) options.onProgress = onProgress;
   return collectEdStemLessonItemsFromBrowser(options, new Date());
 };

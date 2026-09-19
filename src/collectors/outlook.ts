@@ -3,6 +3,7 @@ import {
   collectOutlookEmailItemsFromBrowser,
   type OutlookBrowserOptions,
 } from "./outlookBrowser.js";
+import type { BrowserNavigationProgress } from "./browserReliability.js";
 
 export type OutlookProviderOptions = Omit<OutlookBrowserOptions, "baseUrl"> & {
   baseUrl?: string;
@@ -63,13 +64,20 @@ export const outlookOptionsFromEnvironment = (): OutlookProviderOptions => {
   if (lookbackHours !== undefined) options.lookbackHours = lookbackHours;
   const maxScrolls = boundedIntegerEnvironmentValue("OUTLOOK_MAX_SCROLLS", 0, 50);
   if (maxScrolls !== undefined) options.maxScrolls = maxScrolls;
+  const navigationDelayMs = boundedIntegerEnvironmentValue("OUTLOOK_NAVIGATION_DELAY_MS", 0, 5_000);
+  if (navigationDelayMs !== undefined) options.navigationDelayMs = navigationDelayMs;
+  const settleDelayMs = boundedIntegerEnvironmentValue("OUTLOOK_SETTLE_DELAY_MS", 0, 5_000);
+  if (settleDelayMs !== undefined) options.settleDelayMs = settleDelayMs;
 
   return options;
 };
 
-export const collectOutlookEmailItems = async (): Promise<AgentItem[]> => {
+export const collectOutlookEmailItems = async (
+  onProgress?: (progress: BrowserNavigationProgress) => void,
+): Promise<AgentItem[]> => {
   const options = outlookOptionsFromEnvironment();
   if (!options.enabled || options.baseUrl === undefined) return [];
+  if (onProgress !== undefined) options.onProgress = onProgress;
   return collectOutlookEmailItemsFromBrowser({
     ...options,
     baseUrl: options.baseUrl,

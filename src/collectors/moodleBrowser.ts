@@ -5,6 +5,16 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 
 import { courseCodes } from "../config/courses.js";
 import type { AgentItem } from "../types/index.js";
+import {
+  BrowserSessionError,
+  closeWithTimeout,
+  defaultNavigationDelayMs,
+  defaultSettleDelayMs,
+  isBrowserFailure,
+  type BrowserNavigationProgress,
+  waitBeforeNavigation,
+  waitForPageReady,
+} from "./browserReliability.js";
 
 export type MoodleLinkSnapshot = {
   href: string;
@@ -34,8 +44,11 @@ export type MoodleBrowserOptions = {
   headless?: boolean;
   timeoutMs?: number;
   loginTimeoutMs?: number;
+  navigationDelayMs?: number;
+  settleDelayMs?: number;
   maxCoursePages?: number;
   maxDetailPages?: number;
+  onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
 export class MoodleAuthenticationRequiredError extends Error {
@@ -171,6 +184,11 @@ export class MoodleBrowserSession {
   private readonly origin: string;
   private readonly timeoutMs: number;
   private readonly loginTimeoutMs: number;
+  private readonly navigationDelayMs: number;
+  private readonly settleDelayMs: number;
+  private lastNavigationAt = 0;
+  private failure: BrowserSessionError | undefined;
+  private closing = false;
 
   public constructor(private readonly options: MoodleBrowserOptions) {
     const baseUrl = new URL(options.baseUrl);
@@ -180,10 +198,14 @@ export class MoodleBrowserSession {
     this.origin = baseUrl.origin;
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.loginTimeoutMs = options.loginTimeoutMs ?? defaultLoginTimeoutMs;
+    this.navigationDelayMs = Math.max(0, options.navigationDelayMs ?? defaultNavigationDelayMs);
+    this.settleDelayMs = Math.max(0, options.settleDelayMs ?? defaultSettleDelayMs);
   }
 
   public async open(): Promise<Page> {
+    if (this.failure !== undefined) throw this.failure;
     if (this.page !== undefined && !this.page.isClosed()) return this.page;
+    this.closing = false;
 
     if (this.options.cdpUrl !== undefined) {
       this.browser = await chromium.connectOverCDP(this.options.cdpUrl);
@@ -202,9 +224,22 @@ export class MoodleBrowserSession {
     }
 
     this.context.setDefaultTimeout(this.timeoutMs);
+    this.context.on("close", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("Moodle's browser context closed unexpectedly.");
+    });
+    this.browser?.on("disconnected", () => {
+      if (!this.closing) this.failure ??= new BrowserSessionError("Moodle's browser disconnected unexpectedly.");
+    });
     // Use a separate tab so an attached browser's current tab is not redirected.
     this.page = await this.context.newPage();
+    this.page.on("crash", () => {
+      this.failure ??= new BrowserSessionError("Moodle's browser page crashed.");
+    });
     return this.page;
+  }
+
+  public isBroken(): boolean {
+    return this.failure !== undefined || this.page?.isClosed() === true;
   }
 
   public async goto(targetUrl: string): Promise<MoodlePageSnapshot> {
@@ -214,13 +249,31 @@ export class MoodleBrowserSession {
     }
 
     const page = await this.open();
-    await page.goto(target.toString(), {
-      waitUntil: "domcontentloaded",
-      timeout: this.timeoutMs,
-    });
-    await page.waitForLoadState("networkidle", { timeout: Math.min(this.timeoutMs, 2_000) }).catch(() => {});
-    await this.waitForAuthentication(page);
-    return snapshotPage(page);
+    this.lastNavigationAt = await waitBeforeNavigation(page, this.lastNavigationAt, this.navigationDelayMs);
+    this.options.onProgress?.({ phase: "navigating", url: target.toString() });
+    try {
+      await page.goto(target.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: this.timeoutMs,
+      });
+      await waitForPageReady(page, this.timeoutMs, this.settleDelayMs);
+      await this.waitForAuthentication(page);
+      const snapshot = await snapshotPage(page);
+      this.options.onProgress?.({
+        phase: "ready",
+        url: target.toString(),
+        ...(snapshot.title.length === 0 ? {} : { title: snapshot.title }),
+      });
+      return snapshot;
+    } catch (error: unknown) {
+      if (isBrowserFailure(error) || this.isBroken()) {
+        this.failure ??= error instanceof BrowserSessionError
+          ? error
+          : new BrowserSessionError("Moodle's browser session became unavailable.", error);
+      }
+      this.options.onProgress?.({ phase: "failed", url: target.toString() });
+      throw error;
+    }
   }
 
   private async isAuthenticationPage(page: Page): Promise<boolean> {
@@ -249,12 +302,13 @@ export class MoodleBrowserSession {
   }
 
   public async close(): Promise<void> {
+    this.closing = true;
     const page = this.page;
     this.page = undefined;
-    await page?.close().catch(() => {});
+    await closeWithTimeout(page?.close());
 
     if (this.ownsContext) {
-      await this.context?.close().catch(() => {});
+      await closeWithTimeout(this.context?.close());
     }
 
     // A CDP browser belongs to the user; never close it from the collector.
@@ -705,6 +759,7 @@ export const collectMoodleItemsFromBrowser = async (
         detailLinks.push(...discoverMoodleDetailLinks(courseSnapshot, options.baseUrl));
       } catch (error: unknown) {
         if (error instanceof MoodleAuthenticationRequiredError) throw error;
+        if (session.isBroken()) throw error;
         // One unavailable course should not discard the rest of the read-only collection.
       }
     }
@@ -723,6 +778,7 @@ export const collectMoodleItemsFromBrowser = async (
         detailCount += 1;
       } catch (error: unknown) {
         if (error instanceof MoodleAuthenticationRequiredError) throw error;
+        if (session.isBroken()) throw error;
         // A single unavailable activity should not discard other read-only results.
       }
     }

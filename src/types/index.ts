@@ -161,6 +161,18 @@ export type MorningRunStage =
 
 export type MorningRunStatus = "running" | "completed" | "failed";
 
+export type RunSourceKey =
+  | "downloads"
+  | "calendar"
+  | "gmail"
+  | "github"
+  | "news"
+  | "edstem"
+  | "moodle"
+  | "outlook";
+
+export type RunSourceStatus = "queued" | "starting" | "reading" | "completed" | "skipped" | "failed";
+
 export type MorningRunRecord = {
   runId: string;
   status: MorningRunStatus;
@@ -176,6 +188,15 @@ export type MorningRunRecord = {
 
 export type MorningRunEvent =
   | { type: "run_started"; runId: string; at: string }
+  | {
+      type: "source_progress";
+      runId: string;
+      at: string;
+      source: RunSourceKey;
+      label: string;
+      status: RunSourceStatus;
+      detail?: string;
+    }
   | {
       type: "stage";
       runId: string;

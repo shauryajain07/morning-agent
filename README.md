@@ -45,7 +45,7 @@ MOODLE_BASE_URL=https://your-moodle.example/my/
 MOODLE_BROWSER_PROFILE=.browser-profile
 ```
 
-The first run opens a persistent Chromium profile and waits up to five minutes for you to complete Moodle, SSO, and MFA in that window. The collector never receives credentials and never submits forms. It reads the dashboard and same-origin course pages, then follows bounded same-origin resource, folder, assignment, quiz, and workshop activity pages to find nested file/download links. `MOODLE_LOGIN_TIMEOUT_MS`, `MOODLE_MAX_COURSE_PAGES`, and `MOODLE_MAX_DETAIL_PAGES` control the bounds. `MOODLE_CDP_URL` can be used instead when an already-running Chromium session is available. The browser tab is closed after collection and the attached browser itself is left open.
+The first run opens a persistent Chromium profile and waits up to five minutes for you to complete Moodle, SSO, and MFA in that window. The collector never receives credentials and never submits forms. It discovers every course-view link exposed on the dashboard (not only the five local folder mappings), reads same-origin course pages, then follows bounded same-origin resource, folder, assignment, quiz, and workshop activity pages to find nested file/download links. `MOODLE_LOGIN_TIMEOUT_MS`, `MOODLE_MAX_COURSE_PAGES`, and `MOODLE_MAX_DETAIL_PAGES` control the bounds. `MOODLE_CDP_URL` can be used instead when an already-running Chromium session is available. The browser tab is closed after collection and the attached browser itself is left open.
 
 Moodle accessibility skip links are ignored. If the dashboard exposes both MATH1851 sections, the collector uses the `MATH1851_1AB`/AB course for its files and activities.
 
@@ -81,10 +81,10 @@ EdStem Lessons are collected read-only through the authenticated Ed Discussion w
 ```sh
 EDSTEM_ENABLED=true
 EDSTEM_BASE_URL=https://edstem.org/us/
-EDSTEM_COURSE_URLS=https://edstem.org/us/courses/your-course-id/
 EDSTEM_BROWSER_PROFILE=.edstem-browser-profile
 ```
 
 The first run opens a persistent Chromium profile and waits up to five minutes for you to complete EdStem login, SSO, or MFA manually. Later runs reuse that profile. The collector follows course Lessons pages and bounded lesson links, captures lesson text and visible resource links, and never posts, marks lessons read, submits answers, or changes upstream state. `EDSTEM_COURSES` can restrict discovered courses by ID or visible course code. Lesson content is classified by the same Jev `worthReading` decision as news, and content fingerprints prevent unchanged lessons from appearing as new every morning.
+Leave `EDSTEM_COURSE_URLS` empty to discover every course visible from your authenticated Ed home page; add explicit course links only when Ed's home page does not expose a course. The dashboard's course selector keeps a large course list navigable without requiring one configuration entry per course.
 
 Daily news uses read-only RSS/Atom feeds. Set `NEWS_FEEDS` to a comma-separated list of feeds, or keep the defaults in `.env.example`. Every `news` and `edstem` item gets one Jev `worthReading` decision with a category. Items judged worth reading appear under `[READ NEXT]` in the briefing and in the dashboard’s News/Ed Lessons filters. Stable lesson/article IDs and the existing local seen-item store prevent the same item from being briefed repeatedly on later pulses.

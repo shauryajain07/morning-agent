@@ -50,8 +50,8 @@ export class MoodleAuthenticationRequiredError extends Error {
 
 const defaultTimeoutMs = 15_000;
 const defaultLoginTimeoutMs = 5 * 60 * 1_000;
-const defaultMaxCoursePages = 12;
-const defaultMaxDetailPages = 40;
+const defaultMaxCoursePages = 100;
+const defaultMaxDetailPages = 500;
 const defaultProfileDirectory = join(process.cwd(), ".browser-profile");
 const sensitiveQueryParameter = /^(?:token|wstoken|sesskey|session|password|pass|key)$/iu;
 const courseCodePattern = new RegExp(`\\b(?:${courseCodes.join("|")})(?=\\b|[_-])`, "iu");
@@ -244,7 +244,10 @@ export const discoverCourseLinks = (
   for (const link of snapshot.links) {
     if (isAccessibilitySkipLink(link)) continue;
     const value = `${link.href} ${link.text} ${link.context} ${link.title}`;
-    if (!courseCodeFromText(value) || !sameOrigin(link.href, origin)) continue;
+    // The dashboard can contain courses that are not in the local folder/
+    // decision configuration. The course-view route is the reliable signal;
+    // configured course codes are only used later for labels and routing.
+    if (!sameOrigin(link.href, origin)) continue;
 
     let path = "";
     try {
@@ -474,6 +477,19 @@ const moodleModuleId = (href: string): string | undefined => {
   }
 };
 
+const moodleCourseId = (href: string): string | undefined => {
+  try {
+    const url = new URL(href);
+    if (url.pathname.toLowerCase().endsWith("/course/view.php") || url.pathname.toLowerCase().endsWith("/course/view")) {
+      return url.searchParams.get("id") ?? undefined;
+    }
+    const match = url.pathname.match(/\/pluginfile\.php\/(\d+)(?:\/|$)/iu);
+    return match?.[1];
+  } catch {
+    return undefined;
+  }
+};
+
 const isAnnouncementCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
   const path = pathFor(link.href);
   const text = candidateText(snapshot, link);
@@ -551,10 +567,12 @@ const makeItem = (
 
   const text = candidateText(snapshot, link);
   const course = courseCodeFromText(`${snapshot.url} ${snapshot.title} ${text}`);
+  const courseId = moodleCourseId(snapshot.url) ?? moodleCourseId(href);
   const fallback = kind === "announcement" ? "Moodle announcement" : kind === "assignment" ? "Moodle assignment" : "Moodle course file";
   const title = titleFor(link, fallback, course);
   const metadata: Record<string, unknown> = { kind, href };
   if (course !== undefined) metadata.course = course;
+  if (course === undefined && courseId !== undefined) metadata.courseId = courseId;
 
   const context = cleanText(link.context || text).slice(0, 4_000);
   const createdAt = createdAtCue.test(context) ? parseMoodleDate(context, now, 12, 0) : undefined;

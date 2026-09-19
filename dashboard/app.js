@@ -1,9 +1,11 @@
 const validFilters = new Set(["all", "email", "work", "moodle", "news", "edstem"]);
 const persistedFilter = window.localStorage.getItem("morning-agent:filter");
+const persistedCourse = window.localStorage.getItem("morning-agent:course") ?? "";
 
 const state = {
   data: null,
   filter: validFilters.has(persistedFilter) ? persistedFilter : "all",
+  course: persistedCourse,
   query: "",
   view: window.localStorage.getItem("morning-agent:view") === "everything" ? "everything" : "control",
   events: [],
@@ -59,6 +61,19 @@ const relativeTime = (value) => {
 
 const source = (name) => sourceMeta[name] ?? { label: name, icon: "•", className: "other" };
 
+const courseInfo = (item) => {
+  const metadata = item?.metadata ?? {};
+  if (typeof metadata.course === "string" && metadata.course.trim().length > 0) {
+    const label = metadata.course.trim();
+    return { key: `course:${label.toLowerCase()}`, label };
+  }
+  if (typeof metadata.courseId === "string" && metadata.courseId.trim().length > 0) {
+    const courseId = metadata.courseId.trim();
+    return { key: `course-id:${courseId.toLowerCase()}`, label: item.source === "edstem" ? `Ed ${courseId}` : `Course ${courseId}` };
+  }
+  return null;
+};
+
 const humanize = (value) => String(value ?? "").replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
 
 const decisionSummary = (decision) => {
@@ -111,7 +126,7 @@ const renderMetrics = () => {
   const metrics = state.data?.metrics ?? {};
   $("#metric-total").textContent = metrics.total ?? 0;
   $("#metric-email").textContent = metrics.emails ?? 0;
-  $("#metric-moodle").textContent = metrics.moodle ?? 0;
+  $("#metric-moodle").textContent = (metrics.moodle ?? 0) + (metrics.edstem ?? 0);
   $("#metric-review").textContent = metrics.lowConfidence ?? 0;
   $("#metric-unread").textContent = metrics.unread ?? 0;
   $("#side-email-count").textContent = metrics.emails ?? 0;
@@ -121,6 +136,8 @@ const renderMetrics = () => {
   $("#side-edstem-count").textContent = metrics.edstem ?? 0;
   $("#everything-count").textContent = `${metrics.total ?? 0} SIGNALS`;
   $("#donut-total").textContent = metrics.total ?? 0;
+  const courses = new Set((state.data?.items ?? []).map(courseInfo).filter(Boolean).map((course) => course.key));
+  $("#metric-course-count").textContent = `${courses.size} course${courses.size === 1 ? "" : "s"}`;
 };
 
 const renderHeader = () => {
@@ -182,7 +199,15 @@ const renderReviewQueue = () => {
 };
 
 const renderActivity = () => {
-  const events = state.events.length > 0 ? state.events : [{ title: "Dashboard armed", detail: "Waiting for a pulse", tone: "neutral", at: new Date().toISOString() }];
+  const run = state.data?.run ?? { active: false };
+  const fallback = run.error
+    ? { title: "Last pulse stopped", detail: run.error, tone: "coral", at: run.lastEventAt ?? new Date().toISOString() }
+    : run.active
+      ? { title: "Pulse in progress", detail: `${humanize(run.stage ?? "collect")} stage is active`, tone: "lime", at: run.lastEventAt ?? new Date().toISOString() }
+      : run.completedAt
+        ? { title: "Last pulse complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} Jev calls`, tone: "lime", at: run.completedAt }
+        : { title: "Dashboard armed", detail: "Waiting for a pulse", tone: "neutral", at: new Date().toISOString() };
+  const events = state.events.length > 0 ? state.events : [fallback];
   $("#activity-list").innerHTML = events.map((event) => `<div class="activity-row"><span class="activity-pip ${escapeHtml(event.tone)}"></span><div><div class="activity-title">${escapeHtml(event.title)}</div><div class="activity-detail">${escapeHtml(event.detail)}</div></div><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span></div>`).join("");
 };
 
@@ -240,6 +265,25 @@ const renderFocus = () => {
   ].map(([label, count]) => `<div class="focus-line"><span>${escapeHtml(label)}</span><strong>${count}</strong></div>`).join("");
 };
 
+const renderCourseFilter = () => {
+  const select = $("#course-filter");
+  if (!select) return;
+  const courses = new Map();
+  for (const item of state.data?.items ?? []) {
+    const course = courseInfo(item);
+    if (course !== null) courses.set(course.key, course.label);
+  }
+  if (state.course !== "" && !courses.has(state.course)) {
+    state.course = "";
+    window.localStorage.removeItem("morning-agent:course");
+  }
+  select.replaceChildren(new Option("All courses", ""));
+  for (const [key, label] of Array.from(courses.entries()).sort((left, right) => left[1].localeCompare(right[1]))) {
+    select.append(new Option(label, key));
+  }
+  select.value = state.course;
+};
+
 const filteredItems = () => {
   const items = state.data?.items ?? [];
   return items.filter((item) => {
@@ -249,15 +293,18 @@ const filteredItems = () => {
       || (state.filter === "email" && item.source === "email")
       || (state.filter === "news" && item.source === "news")
       || (state.filter === "edstem" && item.source === "edstem");
-    const haystack = `${item.title} ${item.content ?? ""} ${item.source}`.toLowerCase();
-    return matchesFilter && haystack.includes(state.query.toLowerCase());
+    const itemCourse = courseInfo(item);
+    const matchesCourse = state.course === "" || itemCourse?.key === state.course;
+    const haystack = `${item.title} ${item.content ?? ""} ${item.source} ${itemCourse?.label ?? ""}`.toLowerCase();
+    return matchesFilter && matchesCourse && haystack.includes(state.query.toLowerCase());
   });
 };
 
 const renderStream = () => {
   const items = filteredItems();
   const decisions = state.data?.decisions ?? [];
-  $("#stream-result-count").textContent = `${items.length} signal${items.length === 1 ? "" : "s"}${state.query ? " · filtered" : ""}`;
+  const filterSuffix = state.query || state.course ? " · filtered" : "";
+  $("#stream-result-count").textContent = `${items.length} signal${items.length === 1 ? "" : "s"}${filterSuffix}`;
   if (items.length === 0) {
     $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>No signals here yet.</strong><p>Run a pulse or loosen the filter to see more of your day.</p></div></div>';
     return;
@@ -269,9 +316,11 @@ const renderStream = () => {
     const hot = weakest && confidence(weakest) < 75;
     const unread = item.metadata?.unread === true;
     const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
+    const itemCourse = courseInfo(item);
     const stateClass = hot ? "is-hot" : unread ? "is-unread" : "";
     const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isLesson ? "lesson" : "observed";
-    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml((item.content ?? "").slice(0, 100))}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
+    const subtitle = [itemCourse?.label, item.content ?? ""].filter(Boolean).join(" · ").slice(0, 120);
+    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(item.title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(item.title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(item.createdAt ?? item.observedAt))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
   }).join("");
 };
 
@@ -326,6 +375,7 @@ const render = () => {
   renderDeadlines();
   renderSourceVisual();
   renderFocus();
+  renderCourseFilter();
   renderStream();
 };
 
@@ -414,6 +464,11 @@ $("#search-clear").addEventListener("click", () => {
   state.query = "";
   $("#search-clear").hidden = true;
   $("#search-input").focus();
+  renderStream();
+});
+$("#course-filter").addEventListener("change", (event) => {
+  state.course = event.target.value;
+  window.localStorage.setItem("morning-agent:course", state.course);
   renderStream();
 });
 const syncFilterControls = () => {

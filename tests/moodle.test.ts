@@ -197,6 +197,27 @@ describe("Moodle browser adapter", () => {
     ]);
   });
 
+  it("discovers courses that are not in the local course configuration", () => {
+    const snapshot: MoodlePageSnapshot = {
+      url: "https://moodle.example/my/",
+      title: "Dashboard | hkumoodle",
+      bodyText: "",
+      links: [
+        {
+          href: "https://moodle.example/course/view.php?id=200001",
+          text: "Elective course: Introduction to Design",
+          context: "Introduction to Design",
+          title: "",
+          ariaLabel: "",
+        },
+      ],
+    };
+
+    expect(discoverCourseLinks(snapshot, "https://moodle.example/my/")).toEqual([
+      "https://moodle.example/course/view.php?id=200001",
+    ]);
+  });
+
   it("prefers a nested pluginfile over its resource wrapper", () => {
     const result = extractMoodleItems([
       {

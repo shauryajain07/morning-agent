@@ -62,8 +62,8 @@ export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
   const maxCoursePagesValue = nonEmptyEnvironmentValue("MOODLE_MAX_COURSE_PAGES");
   if (maxCoursePagesValue !== undefined) {
     const maxCoursePages = Number(maxCoursePagesValue);
-    if (!Number.isInteger(maxCoursePages) || maxCoursePages < 1 || maxCoursePages > 100) {
-      throw new Error("MOODLE_MAX_COURSE_PAGES must be an integer from 1 to 100.");
+    if (!Number.isInteger(maxCoursePages) || maxCoursePages < 1 || maxCoursePages > 500) {
+      throw new Error("MOODLE_MAX_COURSE_PAGES must be an integer from 1 to 500.");
     }
     options.maxCoursePages = maxCoursePages;
   }
@@ -71,8 +71,8 @@ export const moodleOptionsFromEnvironment = (): HKUMoodleProviderOptions => {
   const maxDetailPagesValue = nonEmptyEnvironmentValue("MOODLE_MAX_DETAIL_PAGES");
   if (maxDetailPagesValue !== undefined) {
     const maxDetailPages = Number(maxDetailPagesValue);
-    if (!Number.isInteger(maxDetailPages) || maxDetailPages < 1 || maxDetailPages > 200) {
-      throw new Error("MOODLE_MAX_DETAIL_PAGES must be an integer from 1 to 200.");
+    if (!Number.isInteger(maxDetailPages) || maxDetailPages < 1 || maxDetailPages > 1_000) {
+      throw new Error("MOODLE_MAX_DETAIL_PAGES must be an integer from 1 to 1000.");
     }
     options.maxDetailPages = maxDetailPages;
   }

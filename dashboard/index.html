@@ -33,7 +33,7 @@
         <div class="sidebar-label sidebar-label-spaced">Sources</div>
         <div class="source-stack">
           <button class="source-line" data-filter="email" type="button" aria-label="Filter to inbox signals"><span class="source-glyph email">@</span><span>Gmail + Outlook</span><b id="side-email-count">0</b></button>
-          <button class="source-line" data-filter="moodle" type="button" aria-label="Filter to Moodle signals"><span class="source-glyph moodle">M</span><span>Moodle · AB</span><b id="side-moodle-count">0</b></button>
+          <button class="source-line" data-filter="moodle" type="button" aria-label="Filter to Moodle signals"><span class="source-glyph moodle">M</span><span>Moodle · all courses</span><b id="side-moodle-count">0</b></button>
           <button class="source-line" data-filter="work" type="button" aria-label="Filter to work signals"><span class="source-glyph work">⌘</span><span>Work signals</span><b id="side-work-count">0</b></button>
           <button class="source-line" data-filter="news" type="button" aria-label="Filter to daily news"><span class="source-glyph news">✦</span><span>Daily news</span><b id="side-news-count">0</b></button>
           <button class="source-line" data-filter="edstem" type="button" aria-label="Filter to Ed Lessons"><span class="source-glyph edstem">E</span><span>Ed Lessons</span><b id="side-edstem-count">0</b></button>
@@ -69,7 +69,7 @@
           <div class="metric-grid" aria-label="Morning Agent metrics">
             <article class="metric-card accent-cyan"><div class="metric-head"><span>ALL SIGNALS</span><span class="metric-spark">↗</span></div><strong id="metric-total">0</strong><p>items in your orbit</p></article>
             <article class="metric-card accent-lime"><div class="metric-head"><span>INBOX</span><span class="metric-spark">@</span></div><strong id="metric-email">0</strong><p><span id="metric-unread">0</span> unread / email signals</p></article>
-            <article class="metric-card accent-violet"><div class="metric-head"><span>ACADEMIA</span><span class="metric-spark">M</span></div><strong id="metric-moodle">0</strong><p>Moodle AB + course files</p></article>
+            <article class="metric-card accent-violet"><div class="metric-head"><span>ACADEMIA</span><span class="metric-spark">M</span></div><strong id="metric-moodle">0</strong><p><span id="metric-course-count">0 courses</span> · Moodle + Ed Lessons</p></article>
             <article class="metric-card accent-coral"><div class="metric-head"><span>HUMAN QUEUE</span><span class="metric-spark">!</span></div><strong id="metric-review">0</strong><p>low-confidence calls to review</p></article>
           </div>
 
@@ -121,7 +121,7 @@
           </div>
 
           <article class="panel stream-panel">
-              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2><span class="stream-result-count" id="stream-result-count">0 signals</span></div><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div>
+            <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">UNIFIED STREAM</span><h2>Every signal, one surface.</h2><span class="stream-result-count" id="stream-result-count">0 signals</span></div><div class="stream-controls"><label class="course-filter"><span>COURSE</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search emails, files, work…" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
             <div class="stream-table-head"><span>Signal</span><span>Source</span><span>When</span><span>State</span></div>
             <div class="stream-table" id="stream-table"></div>
           </article>

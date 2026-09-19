@@ -62,8 +62,11 @@ const isAllowedOutlookHost = (value: string): boolean => {
 
 const snapshotScript = String.raw`(() => {
   const clean = (value) => (value || "").replace(/\s+/gu, " ").trim();
-  const root = document.querySelector('[role="main"]') || document.body;
-  const candidates = root.querySelectorAll('[role="option"], [role="row"], [data-convid], [data-conversation-id]');
+  const cleanLines = (value) => (value || "").split(/\r?\n/gu).map(clean).filter(Boolean).join("\n");
+  const selector = '[role="option"], [role="row"], [data-convid], [data-conversation-id]';
+  const main = document.querySelector('[role="main"]');
+  const root = main && main.querySelector(selector) ? main : document.body;
+  const candidates = root.querySelectorAll(selector);
   const seen = new Set();
   const records = [];
   for (const row of candidates) {
@@ -72,16 +75,20 @@ const snapshotScript = String.raw`(() => {
     const rect = row.getBoundingClientRect();
     const style = window.getComputedStyle(row);
     if (rect.width < 2 || rect.height < 2 || style.display === "none" || style.visibility === "hidden") continue;
-    const text = clean(row.innerText).slice(0, 4000);
-    const ariaLabel = clean(row.getAttribute("aria-label")).slice(0, 4000);
+    const text = cleanLines(row.innerText).slice(0, 4000);
+    const ariaLabel = cleanLines(row.getAttribute("aria-label")).slice(0, 4000);
     if (text.length < 8 && ariaLabel.length < 8) continue;
     const id = row.getAttribute("data-convid") || row.getAttribute("data-conversation-id") || row.getAttribute("data-item-id") || row.id || "";
     const anchor = row.querySelector("a[href]");
     const href = anchor ? anchor.href : "";
     const time = row.querySelector("time");
-    const titled = Array.from(row.querySelectorAll("[title]"))
+    const titledValues = Array.from(row.querySelectorAll("[title]"))
       .map((node) => clean(node.getAttribute("title")))
-      .find((value) => value.length > 0) || "";
+      .filter((value) => value.length > 0);
+    const titled =
+      titledValues.find((value) => /\b\d{1,2}:\d{2}\b/iu.test(value)) ||
+      titledValues.find((value) => /today|yesterday|\b20\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/iu.test(value)) ||
+      "";
     const dateText = clean(time && (time.getAttribute("datetime") || time.innerText) || titled);
     const unread = /\bunread\b/iu.test(ariaLabel + " " + String(row.className)) || Boolean(row.querySelector('[aria-label*="Unread" i]'));
     if (/^(focused inbox|other|filter|sort|select all|new mail)$/iu.test(text)) continue;
@@ -92,7 +99,16 @@ const snapshotScript = String.raw`(() => {
 })()`;
 
 const scrollScript = String.raw`(() => {
-  const root = document.querySelector('[role="main"]') || document.scrollingElement;
+  const selector = '[role="option"], [role="row"], [data-convid], [data-conversation-id]';
+  const firstRow = document.querySelector(selector);
+  let root = document.querySelector('[role="main"]');
+  if (root === null || root.querySelector(selector) === null) {
+    root = firstRow;
+    while (root !== null && root.parentElement !== null && root.scrollHeight <= root.clientHeight + 2) {
+      root = root.parentElement;
+    }
+  }
+  root = root || document.scrollingElement;
   if (!root) return false;
   const before = root.scrollTop;
   root.scrollTop = root.scrollHeight;
@@ -250,10 +266,21 @@ const noiseLine = (line: string): boolean =>
   /^\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?)$/iu.test(line) ||
   /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/iu.test(line);
 
+const decorativeLine = (line: string): boolean => {
+  if (/^[A-Za-z0-9]$/u.test(line)) return true;
+  return line.length > 0 && Array.from(line).every((character) => /[\p{S}\p{M}\p{C}]/u.test(character));
+};
+
 const parseLines = (record: OutlookMessageSnapshot): string[] => {
-  const primary = record.text.split(/\r?\n/gu).map(cleanText).filter((line) => line.length > 0 && !noiseLine(line));
+  const primary = record.text
+    .split(/\r?\n/gu)
+    .map(cleanText)
+    .filter((line) => line.length > 0 && !noiseLine(line) && !decorativeLine(line));
   if (primary.length >= 2) return primary;
-  return record.ariaLabel.split(/\r?\n/gu).map(cleanText).filter((line) => line.length > 0 && !noiseLine(line));
+  return record.ariaLabel
+    .split(/\r?\n/gu)
+    .map(cleanText)
+    .filter((line) => line.length > 0 && !noiseLine(line) && !decorativeLine(line));
 };
 
 const itemId = (record: OutlookMessageSnapshot, sender: string, title: string, receivedAt: Date): string => {

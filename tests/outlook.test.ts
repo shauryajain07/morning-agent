@@ -53,6 +53,25 @@ describe("Outlook browser adapter", () => {
     expect(result[0]?.id).toMatch(/^outlook:[a-f0-9]{24}$/u);
   });
 
+  it("ignores Outlook avatar and toolbar glyphs when choosing sender and subject", () => {
+    const result = extractOutlookEmailItems(
+      [
+        {
+          id: "glyph-row",
+          text: "\uE73E\neNotices System\nHKU Daily Notices\nA short preview.",
+          ariaLabel: "",
+          href: "https://outlook.office.com/mail/glyph-row",
+          dateText: "Today 7:10 AM",
+          unread: true,
+        },
+      ],
+      now,
+    );
+
+    expect(result[0]?.metadata.sender).toBe("eNotices System");
+    expect(result[0]?.title).toBe("HKU Daily Notices");
+  });
+
   it("uses the aria label when the visible row has no useful line structure", () => {
     const result = extractOutlookEmailItems(
       [

@@ -254,7 +254,7 @@ const renderUnavailable = () => {
   $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>Local activity unavailable.</strong><p>Reconnect to browse your saved items.</p></div></div>';
   $("#stream-result-count").textContent = "Unavailable";
   $("#stream-pagination").textContent = "Unavailable";
-  renderPipeline();
+  $("#pipeline").innerHTML = '<div class="empty-state"><div><strong>Collection is unavailable.</strong><p>Reconnect to see the run stages.</p></div></div>';
 };
 
 const toast = (message, type = "") => {

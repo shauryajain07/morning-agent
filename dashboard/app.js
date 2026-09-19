@@ -438,7 +438,7 @@ const priorityItems = () => {
       detail,
       tone,
       score,
-      at: item.observedAt,
+      at: itemDisplayTimestamp(item),
     });
   };
 

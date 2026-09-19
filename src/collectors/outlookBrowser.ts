@@ -200,11 +200,8 @@ export class OutlookBrowserSession {
         continue;
       }
 
-      const messageRows = await page
-        .locator('[role="option"], [role="row"], [data-convid], [data-conversation-id]')
-        .count()
-        .catch(() => 0);
-      if (messageRows > 0 || Date.now() >= shellDeadline) return;
+      const messageSnapshots = await snapshotPage(page).catch(() => []);
+      if (messageSnapshots.length > 0 || Date.now() >= shellDeadline) return;
       await page.waitForTimeout(500);
     }
     throw new OutlookAuthenticationRequiredError(page.url());

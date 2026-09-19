@@ -430,7 +430,8 @@ h1 em { color: var(--accent); font-style: normal; }
   .nav-hot { display: none; }
   .workspace { padding: 0 15px 38px; }
   .topbar { min-height: 62px; }
-  .connection-state { display: none; }
+  .topbar-actions { gap: 9px; }
+  .connection-state { display: flex; gap: 5px; font-size: 10px; }
   .page-view { padding-top: 31px; }
   .page-heading { display: block; margin-bottom: 24px; }
   .date-block { display: flex; justify-content: space-between; align-items: center; margin-top: 19px; padding: 0; }
@@ -467,6 +468,10 @@ h1 em { color: var(--accent); font-style: normal; }
   .stream-footer { padding: 11px 15px 13px; }
   .data-banner { grid-template-columns: 25px 1fr; margin-top: 13px; }
   .data-banner button { grid-column: 2; justify-self: start; }
+}
+
+@media (max-width: 350px) {
+  .connection-state { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

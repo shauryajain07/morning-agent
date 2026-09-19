@@ -427,8 +427,8 @@ const renderActivity = () => {
           ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run again for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
           : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : priorities.length > 0 ? priorities : [fallback];
-  $("#activity-kicker").textContent = priorities.length > 0 && state.events.length === 0 ? "Worth a look" : "Recent activity";
-  $("#activity-title").textContent = priorities.length > 0 && state.events.length === 0 ? "Worth your attention" : "What changed";
+  $("#activity-kicker").textContent = priorities.length > 0 && state.events.length === 0 ? "Priority" : "Recent activity";
+  $("#activity-title").textContent = priorities.length > 0 && state.events.length === 0 ? "Needs attention" : "Latest changes";
   $("#activity-list").innerHTML = events.map((event) => {
     const body = `<span class="activity-pip ${escapeHtml(event.tone)}"></span><span><span class="activity-title">${escapeHtml(event.title)}</span><span class="activity-detail">${escapeHtml(event.detail)}</span></span><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span>`;
     return event.itemId === undefined
@@ -860,7 +860,7 @@ const selectView = (view) => {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
-  $("#crumb-view").textContent = control ? "Overview" : "All activity";
+  $("#crumb-view").textContent = control ? "Today" : "All activity";
   syncFilterControls();
   if (!control && state.data !== null) renderActivityScope();
 };

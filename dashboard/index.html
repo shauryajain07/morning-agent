@@ -23,7 +23,7 @@
         <div class="sidebar-label">Workspace</div>
         <nav class="main-nav">
           <button class="nav-item is-active" data-view="control" type="button">
-            <span class="nav-icon" aria-hidden="true"></span><span>Overview</span><span class="nav-hot">⌘1</span>
+            <span class="nav-icon" aria-hidden="true"></span><span>Today</span><span class="nav-hot">⌘1</span>
           </button>
           <button class="nav-item" data-view="everything" type="button">
             <span class="nav-icon" aria-hidden="true"></span><span>All activity</span><span class="nav-hot">⌘2</span>
@@ -50,7 +50,7 @@
 
       <main class="workspace" id="workspace-main" aria-busy="true">
         <header class="topbar">
-          <div class="crumbs"><span class="crumb-muted">Morning Agent</span><span class="crumb-slash">/</span><span id="crumb-view">Overview</span></div>
+          <div class="crumbs"><span class="crumb-muted">Morning Agent</span><span class="crumb-slash">/</span><span id="crumb-view">Today</span></div>
           <div class="topbar-actions">
             <div class="connection-state" role="status" aria-live="polite"><span class="live-dot"></span><span id="connection-label">Loading</span></div>
             <button class="run-button" id="run-button" type="button" aria-describedby="pulse-label"><span class="run-icon">↻</span><span>Run now</span></button>
@@ -82,7 +82,7 @@
 
           <div class="dashboard-grid dashboard-grid-bottom">
             <article class="panel activity-panel">
-              <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">What changed</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
+              <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">Latest changes</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
               <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
             </article>
             <article class="panel next-panel">
@@ -145,6 +145,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260919-20"></script>
+    <script type="module" src="/app.js?rev=20260919-21"></script>
   </body>
 </html>

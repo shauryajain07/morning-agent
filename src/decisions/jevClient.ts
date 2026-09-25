@@ -26,6 +26,7 @@ export interface JevEvaluator {
     state: JevState,
     questions: Q,
   ): Promise<JevEvaluation<Q>>;
+  close?(): Promise<void>;
 }
 
 export class JevConfigurationError extends Error {

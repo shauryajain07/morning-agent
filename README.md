@@ -1,6 +1,6 @@
 # Morning Agent
 
-Local, macOS-first morning briefing CLI. Deterministic TypeScript code owns orchestration and action policy; TypeSafe AI's Jev supplies narrow typed decisions only.
+Local, macOS-first morning briefing CLI. Deterministic TypeScript code owns orchestration and action policy; the decision provider supplies narrow typed decisions only.
 
 ## Commands
 
@@ -14,7 +14,33 @@ npm run typecheck
 npm run build
 ```
 
-Live Jev decisions require `TYPESAFE_API_KEY` in `.env` (the `npm run morning` script loads it automatically). The official `@typesafe-ai/sdk` client is configured for `jev-latest`; no other model provider is used. Without credentials, use `--mock` to run the complete offline fixture workflow.
+By default, live decisions use the local Laya-MLX runtime when `LAYA_MLX_ENABLED=true`. Set `LAYA_MLX_ENABLED=false` to use the existing TypeSafe Jev provider (`TYPESAFE_API_KEY`), or set `LAYA_MLX_FALLBACK_TO_TYPESAFE=true` to explicitly allow that provider as a fallback. Without either provider, use `--mock` to run the complete offline fixture workflow.
+
+## Local Laya-MLX decisions
+
+Laya-MLX is used only for typed `choice`, `score`, and `noul` decisions. The application keeps its existing labels, confidence fields, response contracts, action policy, and deterministic briefing text. It does not use Laya-MLX to generate chat replies, emails, prose, or arbitrary JSON; no existing Jev feature in this repository requires text generation.
+
+The Node adapter starts the supplied Python environment lazily and keeps one local worker/model instance alive for a morning run. Configure it in `.env`:
+
+```sh
+LAYA_MLX_ENABLED=true
+LAYA_MLX_MODEL=aac6fef/laya-mlx
+LAYA_MLX_DTYPE=float16
+LAYA_MLX_DEVICE=gpu
+LAYA_MLX_BATCH_SIZE=16
+LAYA_MLX_CHECKOUT=/Users/shauryajain/Documents/Codex/2026-09-21/gh-repo-clone-mizorewww-laya-mlx/work/laya-mlx
+LAYA_MLX_PYTHON=/Users/shauryajain/Documents/Codex/2026-09-21/gh-repo-clone-mizorewww-laya-mlx/work/laya-mlx/.venv/bin/python
+```
+
+Inference runs locally on Apple Silicon through MLX. The cached Hugging Face files are expected under `/Users/shauryajain/.cache/huggingface`; model weights are external artifacts and must not be committed to Git. If the cache needs to download from Hugging Face, set `HF_HUB_DISABLE_XET=1` before running the application.
+
+The existing urgency labels (`today`, `soon`, `later`, `none`) are represented to the model as an ordered `score` rubric and mapped back to the same application output. Email/news/course classification remains `choice`, and yes/no questions remain `noul`.
+
+Run the optional real-model example after the cache is available:
+
+```sh
+LAYA_MLX_INTEGRATION=true npm test -- tests/layaMlx.test.ts
+```
 
 State is stored in `.data/morning-agent.sqlite` by default. Set `MORNING_AGENT_DB_PATH` to override it.
 
@@ -49,11 +75,11 @@ The first run opens a persistent Chromium profile and waits up to five minutes f
 
 Moodle accessibility skip links are ignored. If the dashboard exposes both MATH1851 sections, the collector uses the `MATH1851_1AB`/AB course for its files and activities.
 
-The browser layer is deterministic: it navigates only to the configured Moodle origin, waits for each page to settle, applies a small delay between navigations, and extracts a compact page snapshot. Browser sources run serially so several persistent Chromium profiles do not compete for macOS resources. A closed or crashed browser stops only that source and is shown in the dashboard; it cannot keep retrying forever or discard already collected sources. Legacy submission/comment records from older crawls remain in local history but are hidden from the live dashboard. Jev receives normalized Moodle items afterward for typed decisions; it does not choose arbitrary browser clicks or generate navigation text. Moodle mutations and coursework submission are outside the action allowlist.
+The browser layer is deterministic: it navigates only to the configured Moodle origin, waits for each page to settle, applies a small delay between navigations, and extracts a compact page snapshot. Browser sources run serially so several persistent Chromium profiles do not compete for macOS resources. A closed or crashed browser stops only that source and is shown in the dashboard; it cannot keep retrying forever or discard already collected sources. Legacy submission/comment records from older crawls remain in local history but are hidden from the live dashboard. The selected typed-decision provider receives normalized Moodle items afterward; it does not choose arbitrary browser clicks or generate navigation text. Moodle mutations and coursework submission are outside the action allowlist.
 
 ## Local dashboard
 
-Run `npm run dashboard` and open `http://127.0.0.1:4782`. The dashboard is local-only: it reads the same SQLite state, streams run stages over a live connection, picks up runs launched separately with `npm run morning`, shows the inbox/work/coursework mix, and gives you a review queue for Jev decisions below the confidence threshold. Dashboard runs persist collected state but run in dry-run mode; accepting or dismissing a low-confidence item records your review without sending mail, submitting Moodle work, or making an external mutation.
+Run `npm run dashboard` and open `http://127.0.0.1:4782`. The dashboard is local-only: it reads the same SQLite state, streams run stages over a live connection, picks up runs launched separately with `npm run morning`, shows the inbox/work/coursework mix, and gives you a review queue for typed decisions below the confidence threshold. Dashboard runs persist collected state but run in dry-run mode; accepting or dismissing a low-confidence item records your review without sending mail, submitting Moodle work, or making an external mutation.
 
 ## Outlook collection
 
@@ -68,7 +94,7 @@ OUTLOOK_LOOKBACK_HOURS=24
 
 The first run opens a separate persistent Chromium profile and waits up to five minutes for you to complete Outlook, SSO, and MFA manually. Later runs reuse that session. It reads the inbox list for the configured lookback window, follows no email actions, and never marks messages read, replies, archives, deletes, or sends mail. `OUTLOOK_NAVIGATION_DELAY_MS`, `OUTLOOK_SETTLE_DELAY_MS`, and `OUTLOOK_MAX_SCROLLS` bound the browser pace and list scrolling, and `OUTLOOK_CDP_URL` can attach to an already-running Chromium session. Native Outlook desktop is not used by the standalone CLI; the persistent Outlook Web profile makes this work the same way as Moodle.
 
-Outlook records use the existing `email` source and go through the same TypeSafe Jev email questions as Gmail/mock email. Stable browser-derived IDs and the local SQLite seen-item store prevent the same message from being briefed repeatedly on daily runs.
+Outlook records use the existing `email` source and go through the same typed email questions as Gmail/mock email. Stable browser-derived IDs and the local SQLite seen-item store prevent the same message from being briefed repeatedly on daily runs.
 
 External text is always treated as data. Only the allowlisted typed actions can execute, and calendar/task mutations remain approval-gated even at high confidence.
 
@@ -84,7 +110,7 @@ EDSTEM_BASE_URL=https://edstem.org/us/
 EDSTEM_BROWSER_PROFILE=.edstem-browser-profile
 ```
 
-The first run opens a persistent Chromium profile and waits up to five minutes for you to complete EdStem login, SSO, or MFA manually. Later runs reuse that profile. The collector follows course Lessons pages and bounded lesson links, waits for each page to settle, and never posts, marks lessons read, submits answers, or changes upstream state. `EDSTEM_NAVIGATION_DELAY_MS`, `EDSTEM_SETTLE_DELAY_MS`, and `EDSTEM_COURSES` control the browser pace and course scope. Lesson content is classified by the same Jev `worthReading` decision as news, and content fingerprints prevent unchanged lessons from appearing as new every morning.
+The first run opens a persistent Chromium profile and waits up to five minutes for you to complete EdStem login, SSO, or MFA manually. Later runs reuse that profile. The collector follows course Lessons pages and bounded lesson links, waits for each page to settle, and never posts, marks lessons read, submits answers, or changes upstream state. `EDSTEM_NAVIGATION_DELAY_MS`, `EDSTEM_SETTLE_DELAY_MS`, and `EDSTEM_COURSES` control the browser pace and course scope. Lesson content is classified by the same typed `worthReading` decision as news, and content fingerprints prevent unchanged lessons from appearing as new every morning.
 Leave `EDSTEM_COURSE_URLS` empty to discover every course visible from your authenticated Ed home page; add explicit course links only when Ed's home page does not expose a course. The dashboard's course selector keeps a large course list navigable without requiring one configuration entry per course.
 
-Daily news uses read-only RSS/Atom feeds. Set `NEWS_FEEDS` to a comma-separated list of feeds, or keep the defaults in `.env.example`. Every `news` and `edstem` item gets one Jev `worthReading` decision with a category. Items judged worth reading appear under `[READ NEXT]` in the briefing and in the dashboard’s News/Ed Lessons/Files filters. Stable lesson/article IDs and the existing local seen-item store prevent the same item from being briefed repeatedly on later runs.
+Daily news uses read-only RSS/Atom feeds. Set `NEWS_FEEDS` to a comma-separated list of feeds, or keep the defaults in `.env.example`. Every `news` and `edstem` item gets one typed `worthReading` decision with a category. Items judged worth reading appear under `[READ NEXT]` in the briefing and in the dashboard’s News/Ed Lessons/Files filters. Stable lesson/article IDs and the existing local seen-item store prevent the same item from being briefed repeatedly on later runs.

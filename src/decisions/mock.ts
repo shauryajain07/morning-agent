@@ -33,6 +33,8 @@ const mockUrgency = (item: AgentItem): RequiresActionDecision["urgency"] => {
 };
 
 export class MockDecisionEngine implements DecisionEngine {
+  public async close(): Promise<void> {}
+
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
     if (item.source === "downloads") return [];
 

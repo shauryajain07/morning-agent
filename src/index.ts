@@ -383,7 +383,12 @@ export const runMorning = async (options: RunOptions): Promise<string> => {
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "jev", status: "started", label: stageLabels.jev });
     logStage(options.verbose, "↓\nJEV DECISIONS");
     const decisionEngine = options.mock ? new MockDecisionEngine() : new JevDecisionEngine();
-    const decisions = (await Promise.all(items.map((item) => decisionEngine.evaluateItem(item)))).flat();
+    let decisions: DecisionRecord[];
+    try {
+      decisions = (await Promise.all(items.map((item) => decisionEngine.evaluateItem(item)))).flat();
+    } finally {
+      await decisionEngine.close?.();
+    }
     persistDecisions(store, decisions);
     emit({ type: "stage", runId, at: new Date().toISOString(), stage: "jev", status: "completed", label: stageLabels.jev });
     emit({ type: "decisions_completed", runId, at: new Date().toISOString(), count: decisions.length });
@@ -441,7 +446,9 @@ const main = async (): Promise<void> => {
     const message = error instanceof Error ? error.message : "Morning Agent failed.";
     console.error(`Morning Agent failed: ${message}`);
     if (error instanceof Error && error.name === "JevConfigurationError") {
-      console.error("Set TYPESAFE_API_KEY or run: npm run morning -- --mock");
+      console.error(
+        "Set LAYA_MLX_ENABLED=true with the local runtime, set TYPESAFE_API_KEY, or run: npm run morning -- --mock",
+      );
     }
     process.exitCode = 1;
   }

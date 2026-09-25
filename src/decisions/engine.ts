@@ -19,11 +19,12 @@ import type {
   Questions,
   ScoreResponse,
 } from "@typesafe-ai/sdk";
-import { choice, noul } from "./jevClient.js";
-import { JevClient, type JevEvaluator } from "./jevClient.js";
+import { choice, noul, score, type JevEvaluator } from "./jevClient.js";
+import { createDecisionEvaluator } from "./provider.js";
 
 export type DecisionEngine = {
   evaluateItem(item: AgentItem): Promise<DecisionRecord[]>;
+  close?(): Promise<void>;
 };
 
 const urgencyCriteria = {
@@ -32,6 +33,14 @@ const urgencyCriteria = {
   later: "The item matters but can wait beyond the next few days.",
   none: "No concrete action is needed.",
 } as const;
+
+const urgencyLevels = ["today", "soon", "later", "none"] as const;
+const urgencyRubric = [
+  urgencyCriteria.today,
+  urgencyCriteria.soon,
+  urgencyCriteria.later,
+  urgencyCriteria.none,
+] as const;
 
 const categoryCriteria = {
   academic: "Coursework, teaching, exams, assignments, or university learning.",
@@ -163,7 +172,7 @@ const createQuestions = (item: AgentItem): Questions => {
       "Does this item require a concrete action from the user?",
       { true: "The user must do something specific.", false: "No action is needed." },
     ),
-    urgency: choice("What is the appropriate urgency for the action?", urgencyCriteria),
+    urgency: score("What is the appropriate urgency for the action?", urgencyRubric),
   };
 
   if (item.source === "email") {
@@ -228,6 +237,29 @@ const readChoice = (answers: JevAnswerMap, key: string): { choice: string; confi
   return { choice: answer.choice, confidence: answer.confidence };
 };
 
+const readScore = (
+  answers: JevAnswerMap,
+  key: string,
+): { score: number; confidence: number; probabilities: Readonly<Record<number, number>> } => {
+  const answer = readAnswer(answers, key);
+  if (answer.type !== "score") throw new Error(`Jev answer ${key} was not a Score answer`);
+  return { score: answer.score, confidence: answer.confidence, probabilities: answer.probabilities };
+};
+
+const urgencyFromScore = (answer: ReturnType<typeof readScore>): Urgency => {
+  let bestIndex = Math.round(answer.score);
+  let bestProbability = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < urgencyLevels.length; index += 1) {
+    const probability = answer.probabilities[index] ?? Number.NEGATIVE_INFINITY;
+    if (probability > bestProbability) {
+      bestIndex = index;
+      bestProbability = probability;
+    }
+  }
+  const level = urgencyLevels[Math.max(0, Math.min(urgencyLevels.length - 1, bestIndex))] ?? "none";
+  return level;
+};
+
 const asUrgency = (value: string): Urgency => {
   if (value === "today" || value === "soon" || value === "later" || value === "none") return value;
   throw new Error(`Jev returned unsupported urgency: ${value}`);
@@ -265,7 +297,11 @@ const record = (
 ): DecisionRecord => ({ itemId: item.id, decision, output, model, decidedAt: new Date() });
 
 export class JevDecisionEngine implements DecisionEngine {
-  public constructor(private readonly client: JevEvaluator = new JevClient()) {}
+  public constructor(private readonly client: JevEvaluator = createDecisionEvaluator()) {}
+
+  public async close(): Promise<void> {
+    await this.client.close?.();
+  }
 
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
     const questions = createQuestions(item);
@@ -288,10 +324,10 @@ export class JevDecisionEngine implements DecisionEngine {
     }
 
     const actionRequiredValue = readNoul(answerMap, "actionRequired");
-    const urgency = readChoice(answerMap, "urgency");
+    const urgency = readScore(answerMap, "urgency");
     const requiresAction: RequiresActionDecision = {
       actionRequired: actionRequiredValue >= 0.5,
-      urgency: asUrgency(urgency.choice),
+      urgency: asUrgency(urgencyFromScore(urgency)),
       confidence: Math.min(confidenceOfNoul(actionRequiredValue), urgency.confidence),
     };
     records.push(record(item, "requiresAction", requiresAction, evaluation.model));

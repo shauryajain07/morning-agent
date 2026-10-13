@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f3ed">
+    <meta name="description" content="How the Morning Agent website and local app handle information.">
+    <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/site.css">
+    <title>Privacy Notice — Morning Agent</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header"><div class="nav-wrap"><a class="brand" href="./" aria-label="Morning Agent home"><img src="assets/mark.svg" width="38" height="38" alt=""><span>Morning Agent</span></a><nav class="main-nav" aria-label="Main navigation"><a href="index.html#how-it-works">How it works</a><a href="privacy.html" aria-current="page">Privacy</a><a class="nav-download" href="getting-started.html">Get the app <span aria-hidden="true">↗</span></a></nav></div></header>
+    <main class="legal-page" id="main"><div class="section-wrap legal-layout">
+      <aside class="legal-aside"><p class="eyebrow">Your data, your device</p><h1>Privacy<br>notice.</h1><p>Last updated October 13, 2026</p><a class="text-link" href="index.html">← Back to Morning Agent</a></aside>
+      <article class="legal-content">
+        <p class="legal-lede">Morning Agent is a local-first application. The project does not receive the inbox, course, file, or account data that you collect with the app.</p>
+        <h2>1. The landing website</h2>
+        <p>This static website is hosted by GitHub Pages. It has no sign-up form, analytics script, advertising tracker, or project-managed cookies. GitHub may process technical information such as request data to operate and protect its hosting service. See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">GitHub’s Privacy Statement</a> for its handling of that information.</p>
+
+        <h2>2. Information stored by the local app</h2>
+        <p>When you run Morning Agent, it can read the sources you enable, such as Gmail, Outlook, GitHub, Moodle, Ed Lessons, local downloads, and RSS feeds. It stores collected items, decisions, reviews, and run history in a local SQLite database (by default, <code>.data/morning-agent.sqlite</code>). Browser-based integrations keep their sign-in profiles in local folders. OAuth credentials are kept in local configuration or token files.</p>
+        <p>The project does not operate a cloud account for this app and does not receive this information. The software has no built-in project telemetry or analytics. Protect your computer, configuration files, OAuth tokens, and browser profiles as you would other private records.</p>
+
+        <h2>3. Information sent to connected services</h2>
+        <p>Enabled collectors make requests directly from your computer to the services you configure. Gmail access uses the read-only Gmail scope. Outlook, Moodle, and Ed Lessons are read through browser sessions. GitHub and RSS requests go to their respective services and feeds. Those providers apply their own privacy terms.</p>
+
+        <h2>4. Optional decision providers</h2>
+        <p>You can configure Laya-MLX to run locally. If you disable Laya-MLX or explicitly enable the TypeSafe fallback, Morning Agent sends the normalized item and typed decision questions to TypeSafe Jev for classification. Item text and metadata may include private email bodies, course material, or other source content. Review the provider’s terms and privacy practices before enabling a remote provider.</p>
+
+        <h2>5. Actions and sharing</h2>
+        <p>Source collection is read-only. The app can perform selected local file operations and offers approval-gated task and calendar actions. It does not send email, submit coursework, delete files, or modify Moodle or GitHub. The app does not send collected content to the Morning Agent project.</p>
+
+        <h2>6. Your choices and deletion</h2>
+        <p>Choose which sources and decision provider to enable. You can remove the local database, browser profiles, and token files from your computer to delete the associated local history and sign-in state. Check the relevant provider’s account settings if you also want to revoke connected credentials.</p>
+
+        <h2>7. Contact</h2>
+        <p>If you contact the project through <a href="https://github.com/shauryajain07/morning-agent/issues">GitHub Issues</a>, your GitHub username and the information you post may be visible publicly and are handled under GitHub’s terms. Do not include passwords, tokens, email contents, or other sensitive personal information in a public issue. For privacy questions, identify the issue as a privacy request without including the underlying private data.</p>
+      </article>
+    </div></main>
+    <footer class="site-footer"><div class="footer-main section-wrap"><a class="brand footer-brand" href="./"><img src="assets/mark.svg" width="34" height="34" alt=""><span>Morning Agent</span></a><p>A clearer start, built for your own computer.</p><nav aria-label="Legal and project links"><a href="terms.html">Terms</a><a href="privacy.html" aria-current="page">Privacy</a><a href="disclaimer.html">Disclaimer</a><a href="https://github.com/shauryajain07/morning-agent">GitHub</a></nav></div><div class="footer-bottom section-wrap"><span>© 2026 Morning Agent</span><span>Independent project · Not affiliated with connected services</span></div></footer>
+  </body>
+</html>

@@ -1,6 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
-import { join } from "node:path";
 
 import type { EntryType, Questions } from "@typesafe-ai/sdk";
 
@@ -11,9 +10,6 @@ import type {
 } from "./jevClient.js";
 
 export const LAYA_MLX_MODEL = "aac6fef/laya-mlx" as const;
-export const DEFAULT_LAYA_MLX_CHECKOUT =
-  "/Users/shauryajain/Documents/Codex/2026-09-21/gh-repo-clone-mizorewww-laya-mlx/work/laya-mlx";
-export const DEFAULT_LAYA_MLX_PYTHON = join(DEFAULT_LAYA_MLX_CHECKOUT, ".venv", "bin", "python");
 
 type LayaMlxAnswer = {
   readonly type: "choice" | "score" | "noul";
@@ -147,8 +143,14 @@ class PythonLayaMlxRuntime implements LayaMlxRuntime {
   }
 
   public static async start(options: PythonLayaMlxRuntimeOptions): Promise<LayaMlxRuntime> {
-    const checkoutPath = options.checkoutPath ?? DEFAULT_LAYA_MLX_CHECKOUT;
-    const pythonPath = options.pythonPath ?? DEFAULT_LAYA_MLX_PYTHON;
+    const checkoutPath = options.checkoutPath?.trim();
+    const pythonPath = options.pythonPath?.trim();
+    if (!checkoutPath) {
+      throw new Error("LAYA_MLX_CHECKOUT must point to your local laya-mlx checkout");
+    }
+    if (!pythonPath) {
+      throw new Error("LAYA_MLX_PYTHON must point to the Python environment for laya-mlx");
+    }
     const model = options.model ?? LAYA_MLX_MODEL;
     const dtype = options.dtype ?? "float16";
     const device = options.device ?? "gpu";

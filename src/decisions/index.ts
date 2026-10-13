@@ -1,7 +1,5 @@
 export { JevClient, JevConfigurationError, JEV_MODEL } from "./jevClient.js";
 export {
-  DEFAULT_LAYA_MLX_CHECKOUT,
-  DEFAULT_LAYA_MLX_PYTHON,
   LAYA_MLX_MODEL,
   LayaMlxClient,
   PythonLayaMlxRuntimeLoader,

@@ -2,6 +2,10 @@
 
 Local, macOS-first morning briefing CLI. Deterministic TypeScript code owns orchestration and action policy; the decision provider supplies narrow typed decisions only.
 
+## Website and downloads
+
+The project landing page is published at [shauryajain07.github.io/morning-agent](https://shauryajain07.github.io/morning-agent/). The [source ZIP](https://github.com/shauryajain07/morning-agent/archive/refs/heads/main.zip) is a Node.js project archive, not a signed macOS installer. See the [getting started guide](https://shauryajain07.github.io/morning-agent/getting-started.html) before connecting any accounts. The source is available for noncommercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
 ## Commands
 
 ```sh
@@ -28,11 +32,11 @@ LAYA_MLX_MODEL=aac6fef/laya-mlx
 LAYA_MLX_DTYPE=float16
 LAYA_MLX_DEVICE=gpu
 LAYA_MLX_BATCH_SIZE=16
-LAYA_MLX_CHECKOUT=/Users/shauryajain/Documents/Codex/2026-09-21/gh-repo-clone-mizorewww-laya-mlx/work/laya-mlx
-LAYA_MLX_PYTHON=/Users/shauryajain/Documents/Codex/2026-09-21/gh-repo-clone-mizorewww-laya-mlx/work/laya-mlx/.venv/bin/python
+LAYA_MLX_CHECKOUT=/absolute/path/to/laya-mlx
+LAYA_MLX_PYTHON=/absolute/path/to/laya-mlx/.venv/bin/python
 ```
 
-Inference runs locally on Apple Silicon through MLX. The cached Hugging Face files are expected under `/Users/shauryajain/.cache/huggingface`; model weights are external artifacts and must not be committed to Git. If the cache needs to download from Hugging Face, set `HF_HUB_DISABLE_XET=1` before running the application.
+Inference runs locally on Apple Silicon through MLX. The model is expected in Hugging Face's local cache; model weights are external artifacts and must not be committed to Git. If the cache needs to download from Hugging Face, set `HF_HUB_DISABLE_XET=1` before running the application.
 
 The existing urgency labels (`today`, `soon`, `later`, `none`) are represented to the model as an ordered `score` rubric and mapped back to the same application output. Email/news/course classification remains `choice`, and yes/no questions remain `noul`.
 

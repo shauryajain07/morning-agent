@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f3ed">
+    <meta name="description" content="Download the Morning Agent source and set it up on your Mac.">
+    <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/site.css">
+    <title>Get started — Morning Agent</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header"><div class="nav-wrap">
+      <a class="brand" href="./" aria-label="Morning Agent home"><img src="assets/mark.svg" width="38" height="38" alt=""><span>Morning Agent</span></a>
+      <nav class="main-nav" aria-label="Main navigation"><a href="index.html#how-it-works">How it works</a><a href="index.html#privacy">Privacy</a><a class="nav-download" href="getting-started.html" aria-current="page">Get the app <span aria-hidden="true">↗</span></a></nav>
+    </div></header>
+    <main class="legal-page" id="main">
+      <div class="section-wrap legal-layout">
+        <aside class="legal-aside"><p class="eyebrow">Get started</p><h1>Run your first<br>morning locally.</h1><p>The download is the project source code, not a signed Mac installer. You’ll set it up from Terminal and choose which sources to connect.</p><a class="button button-dark download-button" href="https://github.com/shauryajain07/morning-agent/archive/refs/heads/main.zip">Download source ZIP <span aria-hidden="true">↓</span></a><a class="text-link" href="https://github.com/shauryajain07/morning-agent">Browse the code on GitHub <span aria-hidden="true">↗</span></a><p class="aside-note">Free for personal, noncommercial use under the <a href="terms.html">PolyForm Noncommercial License 1.0.0</a>.</p></aside>
+        <article class="legal-content">
+          <p class="eyebrow">A few minutes to set up</p>
+          <h2>What you need</h2>
+          <ul class="check-list">
+            <li>macOS (the project is macOS-first)</li>
+            <li>Node.js 20 or newer</li>
+            <li>Terminal, for installing and running the source</li>
+            <li>Optional: credentials for the services you choose to connect</li>
+          </ul>
+
+          <h2>Install and open the dashboard</h2>
+          <ol class="setup-steps">
+            <li><span class="setup-number">1</span><div><strong>Download and unzip</strong><p>Choose <em>Download source ZIP</em>, then open Terminal in the extracted <code>morning-agent-main</code> folder.</p></div></li>
+            <li><span class="setup-number">2</span><div><strong>Install dependencies</strong><pre><code>npm install</code></pre></div></li>
+            <li><span class="setup-number">3</span><div><strong>Set up your local config</strong><p>Copy the example config. Add credentials only for the sources and decision provider you choose.</p><pre><code>cp .env.example .env</code></pre></div></li>
+            <li><span class="setup-number">4</span><div><strong>Start with the offline demo</strong><pre><code>npm run morning -- --mock</code></pre><p>This runs sample data without connecting to your accounts.</p></div></li>
+            <li><span class="setup-number">5</span><div><strong>Open the dashboard</strong><pre><code>npm run dashboard</code></pre><p>Then visit <code>http://127.0.0.1:4782</code> in your browser.</p></div></li>
+          </ol>
+
+          <div class="notice-card"><strong>Using Moodle, Outlook, or Ed Lessons?</strong><p>Those sources use a local Chromium browser. Install it once with <code>npx playwright install chromium</code>. The first run opens a browser so you can sign in yourself.</p></div>
+
+          <h2 id="connectors">Choose your sources</h2>
+          <p>Every integration is optional. Follow the setup notes in the <a href="https://github.com/shauryajain07/morning-agent/blob/main/README.md">project README</a> for Gmail, GitHub, Moodle, Outlook, Ed Lessons, news feeds, and local files. Give the app only the access it needs.</p>
+
+          <h2>Choose a decision provider</h2>
+          <p>The app can use local Laya-MLX for typed classification decisions. You can also configure the TypeSafe Jev provider. When a remote provider is enabled, the app sends the item content and metadata needed for its decision; review the <a href="privacy.html">Privacy Notice</a> before connecting personal inbox or course content.</p>
+
+          <div class="notice-card notice-warm"><strong>Source code, not an installer</strong><p>This download does not include a signed <code>.app</code> bundle. You’ll need Node.js and a few Terminal commands. The walkthrough video will be added here when it’s ready.</p></div>
+          <p class="setup-footer"><a class="text-link" href="index.html">← Back to Morning Agent</a><span>Need help? <a href="https://github.com/shauryajain07/morning-agent/issues">Contact the project on GitHub</a>.</span></p>
+        </article>
+      </div>
+    </main>
+    <footer class="site-footer"><div class="footer-main section-wrap"><a class="brand footer-brand" href="./"><img src="assets/mark.svg" width="34" height="34" alt=""><span>Morning Agent</span></a><p>A clearer start, built for your own computer.</p><nav aria-label="Legal and project links"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="disclaimer.html">Disclaimer</a><a href="https://github.com/shauryajain07/morning-agent">GitHub</a></nav></div><div class="footer-bottom section-wrap"><span>© 2026 Morning Agent</span><span>Independent project · Not affiliated with connected services</span></div></footer>
+  </body>
+</html>

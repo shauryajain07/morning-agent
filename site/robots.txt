@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shauryajain07.github.io/morning-agent/sitemap.xml

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dashboard/dist/
 .data/
 .browser-profile/
 .outlook-browser-profile/

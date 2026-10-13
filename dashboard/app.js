@@ -1,3 +1,10 @@
+import "@/components/arc/foundation.css";
+import "./styles.css";
+import "@fontsource-variable/geist/index.css";
+import "@fontsource-variable/inter/index.css";
+import sourceProgressStyles from "./source-progress.module.css";
+import { renderArcActivity, renderArcMetrics, renderArcRunButton, renderArcSettings } from "./arc-ui.tsx";
+
 const validFilters = new Set(["all", "deadlines", "review", "email", "courses", "work", "moodle", "news", "edstem", "files"]);
 const streamScopeLabels = {
   all: "All items",
@@ -25,17 +32,21 @@ const state = {
   liveRunActive: false,
   liveStage: "",
   liveLastEventAt: "",
+  settings: null,
+  settingsError: "",
+  settingsLoading: false,
 };
 
 let connectionStatus = "connecting";
 let lastFocusedElement = null;
 let stateFetchInFlight = null;
+let settingsFetchInFlight = null;
 let searchRenderTimer = 0;
 let runStarting = false;
 let runStartTimer = 0;
 
 const stages = ["collect", "normalize", "jev", "policy", "actions", "briefing"];
-const sourcePlan = [
+let sourcePlan = [
   { key: "downloads", label: "Files" },
   { key: "calendar", label: "Calendar" },
   { key: "gmail", label: "Gmail" },
@@ -50,6 +61,7 @@ const sourceStatusLabels = {
   starting: "Starting",
   reading: "Reading",
   completed: "Done",
+  partial: "Partial",
   skipped: "Skipped",
   failed: "Needs attention",
 };
@@ -122,25 +134,25 @@ const cleanDisplayText = (value) => decodeHtmlEntities(value)
 const cleanTitle = (value) => cleanDisplayText(value) || "Untitled item";
 
 const formatTime = (value) => {
-  if (!value) return "—";
+  if (!value) return "Unknown";
   const date = new Date(value);
   return Number.isFinite(date.getTime())
     ? new Intl.DateTimeFormat("en-HK", { hour: "2-digit", minute: "2-digit" }).format(date)
-    : "—";
+    : "Unknown";
 };
 
 const formatDate = (value) => {
-  if (!value) return "—";
+  if (!value) return "Unknown";
   const date = new Date(value);
   return Number.isFinite(date.getTime())
     ? new Intl.DateTimeFormat("en-HK", { day: "numeric", month: "short" }).format(date)
-    : "—";
+    : "Unknown";
 };
 
 const relativeTime = (value) => {
-  if (!value) return "—";
+  if (!value) return "Unknown";
   const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "—";
+  if (!Number.isFinite(timestamp)) return "Unknown";
   const delta = Date.now() - timestamp;
   if (delta < 30_000) return "just now";
   if (delta < 0) return "upcoming";
@@ -260,7 +272,7 @@ const hideDataBanner = () => {
 };
 
 const setDataControlsDisabled = (disabled) => {
-  $$(".metric-link, .source-line, .filter-button, #course-filter, #search-input, #search-clear, #stream-more").forEach((control) => {
+  $$(".source-line, .filter-button, #course-filter, #search-input, #search-clear, #stream-more").forEach((control) => {
     control.disabled = disabled;
   });
 };
@@ -292,7 +304,8 @@ const armRunStarting = () => {
 const renderUnavailable = () => {
   setDataControlsDisabled(true);
   $("#pulse-label").textContent = "Unavailable";
-  $("#status-caption").textContent = "The local dashboard service is unavailable. Try again when it is running.";
+  $("#pulse-label").closest(".snapshot-state")?.classList.add("is-error");
+  $("#status-caption").textContent = "The local dashboard service is unavailable. Start it, then refresh local data.";
   $("#status-caption").classList.remove("is-stale");
   $("#pipeline-kicker").textContent = "Connection";
   $("#pipeline-title").textContent = "Collection unavailable";
@@ -308,20 +321,16 @@ const renderUnavailable = () => {
   $("#everything-count").textContent = "Unavailable";
   $("#source-scope").textContent = "unavailable";
   $("#source-bars").innerHTML = '<div class="empty-state"><div><strong>Source mix unavailable.</strong><p>Reconnect to read the saved sources.</p></div></div>';
-  $("#focus-score").textContent = "—";
+  $("#focus-score").textContent = "Unavailable";
+  $("#focus-score").closest(".focus-score")?.classList.add("is-unavailable");
   $("#focus-score").setAttribute("aria-label", "Attention signals unavailable");
-  $("#stream-title").textContent = "Local activity unavailable";
-  $("#stream-table").innerHTML = '<div class="empty-state"><div><strong>Local activity unavailable.</strong><p>Reconnect to browse your saved items.</p></div></div>';
-  $("#stream-result-count").textContent = "Unavailable";
-  $("#stream-pagination").textContent = "Unavailable";
   $("#pipeline").innerHTML = '<div class="pipeline-message is-error"><strong>Collection unavailable.</strong><span>Reconnect to see the run stages.</span></div>';
   $("#source-progress-status").textContent = "Unavailable";
   $("#source-progress-list").innerHTML = '<div class="source-progress-empty">Source progress is unavailable until the local service reconnects.</div>';
   $("#next-action").textContent = "Reconnect to restore the local run monitor.";
-  const button = $("#run-button");
-  button.disabled = true;
-  button.classList.remove("is-loading");
-  button.innerHTML = '<span class="run-icon">↻</span><span>Reconnect first</span>';
+  renderMetrics();
+  renderStream();
+  renderArcRunButton({ label: "Service unavailable", disabled: true, loading: false }, () => runPulse(false));
 };
 
 const toast = (message, type = "") => {
@@ -339,9 +348,9 @@ const setConnectionStatus = (status) => {
   const connectionState = $(".connection-state");
   connectionState?.classList.toggle("is-live", status === "live");
   connectionState?.classList.toggle("is-reconnecting", status === "reconnecting");
-  const serviceDot = $(".sidebar-footer .live-dot");
-  serviceDot?.classList.toggle("is-live", status === "live");
-  serviceDot?.classList.toggle("is-reconnecting", status === "reconnecting");
+  const serviceState = $(".sidebar-footer");
+  serviceState?.classList.toggle("is-live", status === "live");
+  serviceState?.classList.toggle("is-offline", status === "reconnecting");
   const serviceLabel = $("#service-label");
   if (serviceLabel) serviceLabel.textContent = status === "live" ? "Local service" : status === "reconnecting" ? "Reconnecting" : "Connecting";
   if (state.data !== null) renderHeader();
@@ -389,13 +398,119 @@ const fetchState = () => {
   return operation;
 };
 
+const renderSettings = () => {
+  const host = $("#settings-ui-host");
+  if (!host) return;
+  if (state.settings === null) {
+    host.setAttribute("aria-busy", state.settingsLoading ? "true" : "false");
+    host.replaceChildren();
+    const message = document.createElement("p");
+    message.className = state.settingsError ? "pipeline-message is-error" : "loading-state";
+    message.setAttribute("role", state.settingsError ? "alert" : "status");
+    message.textContent = state.settingsError || "Loading service settings…";
+    host.append(message);
+    if (state.settingsError) {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "text-button";
+      retry.textContent = "Refresh settings";
+      retry.addEventListener("click", () => fetchSettings().catch(() => {}), { once: true });
+      host.append(retry);
+    }
+    return;
+  }
+  host.setAttribute("aria-busy", "false");
+  renderArcSettings({
+    settings: state.settings,
+    onSave: async (preferences) => {
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(preferences),
+      });
+      const settings = await readApiResponse(response, "Could not save service settings.");
+      applySettings(settings);
+      return settings;
+    },
+    onStartLogin: async (service) => {
+      const response = await fetch("/api/settings/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ service }),
+      });
+      const payload = await readApiResponse(response, "Could not start sign-in.");
+      applySettings(payload.settings);
+      return { settings: payload.settings, ...(payload.authorizationUrl ? { authorizationUrl: payload.authorizationUrl } : {}) };
+    },
+    onCompleteLogin: async (service) => {
+      const response = await fetch("/api/settings/login/complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ service }),
+      });
+      const settings = await readApiResponse(response, "Could not finish sign-in.");
+      applySettings(settings);
+      return settings;
+    },
+    onCancelLogin: async (service) => {
+      const response = await fetch("/api/settings/login/cancel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ service }),
+      });
+      const settings = await readApiResponse(response, "Could not cancel sign-in.");
+      applySettings(settings);
+      return settings;
+    },
+  });
+};
+
+const readApiResponse = async (response, fallback) => {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error ?? fallback);
+  return payload;
+};
+
+const applySettings = (settings) => {
+  if (!settings || !Array.isArray(settings.order) || !Array.isArray(settings.services)) return;
+  state.settings = settings;
+  state.settingsError = "";
+  sourcePlan = settings.order.map((key) => {
+    const service = settings.services.find((candidate) => candidate.key === key);
+    return { key, label: service?.label ?? sourceMeta[key]?.label ?? key };
+  });
+  renderSettings();
+  renderSourceProgress();
+};
+
+const fetchSettings = () => {
+  if (settingsFetchInFlight !== null) return settingsFetchInFlight;
+  const operation = (async () => {
+    state.settingsLoading = true;
+    renderSettings();
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      const settings = await readApiResponse(response, "Could not read service settings.");
+      applySettings(settings);
+      return settings;
+    } catch (error) {
+      state.settingsError = errorMessage(error, "Could not read service settings.");
+      renderSettings();
+      throw error;
+    } finally {
+      state.settingsLoading = false;
+    }
+  })();
+  settingsFetchInFlight = operation;
+  operation.then(
+    () => { if (settingsFetchInFlight === operation) settingsFetchInFlight = null; },
+    () => { if (settingsFetchInFlight === operation) settingsFetchInFlight = null; },
+  );
+  return operation;
+};
+
 const renderMetrics = () => {
   const metrics = state.data?.metrics ?? {};
-  $("#metric-total").textContent = metrics.total ?? 0;
-  $("#metric-email").textContent = metrics.emails ?? 0;
-  $("#metric-moodle").textContent = (metrics.moodle ?? 0) + (metrics.edstem ?? 0);
-  $("#metric-review").textContent = metrics.lowConfidence ?? 0;
-  $("#metric-unread").textContent = metrics.unread ?? 0;
   $("#side-email-count").textContent = metrics.emails ?? 0;
   $("#side-moodle-count").textContent = metrics.moodle ?? 0;
   $("#side-work-count").textContent = metrics.work ?? 0;
@@ -409,7 +524,16 @@ const renderMetrics = () => {
   $("#everything-count").textContent = `${visibleLabel}${latestObservation === "" ? "" : ` · last observed ${relativeTime(latestObservation)}`}`;
   $("#donut-total").textContent = metrics.total ?? 0;
   const courses = new Set((state.data?.items ?? []).map(courseInfo).filter(Boolean).map((course) => course.key));
-  $("#metric-course-count").textContent = `${courses.size} course${courses.size === 1 ? "" : "s"}`;
+  const metricGrid = $("#metric-grid");
+  metricGrid.setAttribute("aria-busy", state.data === null && connectionStatus !== "reconnecting" ? "true" : "false");
+  renderArcMetrics(state.data === null ? null : {
+    total: metrics.total ?? 0,
+    emails: metrics.emails ?? 0,
+    unread: metrics.unread ?? 0,
+    coursework: (metrics.moodle ?? 0) + (metrics.edstem ?? 0),
+    review: metrics.lowConfidence ?? 0,
+    courses: courses.size,
+  }, state.data === null && connectionStatus === "reconnecting", openFilteredView);
 };
 
 const renderHeader = () => {
@@ -423,10 +547,14 @@ const renderHeader = () => {
   setDataControlsDisabled(!hasSnapshot);
   const label = runBusy ? "Processing" : run.error ? "Needs attention" : !hasSnapshot ? "Loading" : run.completedAt ? "Last run complete" : "Ready";
   $("#pulse-label").textContent = label;
+  const snapshotState = $("#pulse-label").closest(".snapshot-state");
+  snapshotState?.classList.toggle("is-ready", hasSnapshot && !runBusy && !run.error && !isReconnecting);
+  snapshotState?.classList.toggle("is-error", Boolean(run.error) || isReconnecting);
   $("#pipeline-kicker").textContent = runBusy ? "Live run" : run.error ? "Last run" : !hasSnapshot ? "Connection" : hasRunHistory ? "Last run" : "Snapshot";
   $("#pipeline-title").textContent = runBusy ? "Collecting now" : run.error ? "Collection stopped" : !hasSnapshot ? "Reading state" : hasRunHistory ? "Collection" : "Saved activity";
   $("#pipeline-status").textContent = runBusy ? "Running" : run.error ? "Error" : !hasSnapshot ? "Loading" : isReconnecting ? "Offline" : "Idle";
   $("#pipeline-status").classList.toggle("is-running", runBusy);
+  $("#pipeline-status").classList.toggle("is-error", Boolean(run.error) || isReconnecting);
   const pipelinePanel = $(".pipeline-panel");
   pipelinePanel?.classList.toggle("is-running", runBusy);
   pipelinePanel?.classList.toggle("is-idle", !runBusy && !run.error && !run.completedAt && hasSnapshot);
@@ -439,27 +567,27 @@ const renderHeader = () => {
       ? `The last run stopped: ${run.error}`
       : !hasSnapshot
         ? "Reading your local state…"
-        : `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`;
+        : `${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · last observed ${latestObservation === "" ? "Unknown" : relativeTime(latestObservation)}${isStaleSnapshot ? " · refresh recommended" : isReconnecting ? " · service reconnecting" : ""}.`;
   $("#pipeline-footnote").textContent = run.active
-    ? `Run ${run.runId?.slice(0, 8) ?? "—"} · ${humanize(run.stage ?? "collect")}`
+    ? `Run ${run.runId?.slice(0, 8) ?? "pending"} · ${humanize(run.stage ?? "collect")}`
     : runStarting
       ? "Starting local collection…"
     : run.completedAt
       ? `Last run ${relativeTime(run.completedAt)} · ${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`
       : !hasSnapshot
         ? "Reading local state…"
-        : `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run again to refresh"}`;
+        : `${latestObservation === "" ? "No observation time" : `Last observed ${relativeTime(latestObservation)}`} · ${state.data.metrics.total} saved item${state.data.metrics.total === 1 ? "" : "s"} · ${isStaleSnapshot ? "refresh recommended" : isReconnecting ? "service reconnecting" : "run a new check to refresh"}`;
   $("#activity-status").textContent = runBusy ? "updating" : !hasSnapshot ? "loading" : connectionStatus === "live" ? "from saved data" : isReconnecting ? "reconnecting" : "offline";
-  const button = $("#run-button");
-  button.disabled = runBusy || !hasSnapshot;
-  button.classList.toggle("is-loading", runBusy);
-  button.innerHTML = run.active
-    ? '<span class="run-icon">◌</span><span>Run in progress</span>'
+  $("#activity-status").classList.toggle("is-error", Boolean(run.error) || isReconnecting);
+  $("#activity-status").classList.toggle("is-updating", runBusy);
+  const runLabel = run.active
+    ? "Run in progress"
     : runStarting
-      ? '<span class="run-icon">◌</span><span>Starting run</span>'
-    : !hasSnapshot
-      ? '<span class="run-icon">◌</span><span>Loading state</span>'
-    : `<span class="run-icon">↻</span><span>${run.error ? "Retry run" : "Run now"}</span>`;
+      ? "Starting check"
+      : !hasSnapshot
+        ? "Loading data"
+        : run.error ? "Retry check" : "Run check";
+  renderArcRunButton({ label: runLabel, disabled: !hasSnapshot || runBusy, loading: runBusy }, () => runPulse(false));
 };
 
 const renderPipeline = () => {
@@ -477,7 +605,7 @@ const renderPipeline = () => {
     return;
   }
   if (!run.active && !state.liveRunActive && !run.completedAt) {
-    $("#pipeline").innerHTML = '<div class="pipeline-message"><strong>Snapshot ready.</strong><span>Run now to check your configured sources for anything new.</span></div>';
+    $("#pipeline").innerHTML = '<div class="pipeline-message"><strong>Snapshot ready.</strong><span>Run a check to look for new items in your configured sources.</span></div>';
     return;
   }
   const activeIndex = stages.indexOf(run.stage);
@@ -497,6 +625,33 @@ const renderPipeline = () => {
 };
 
 const sourceProgressEntry = (key) => state.sourceProgress?.[key] ?? null;
+
+const sourceCoverageSummary = (coverage) => {
+  if (!coverage) return "";
+  const count = (value) => String(value ?? 0);
+  const parts = [
+    coverage.messagesScanned > 0
+      ? `${count(coverage.messagesScanned)} message${coverage.messagesScanned === 1 ? "" : "s"} scanned`
+      : coverage.pagesScanned > 0
+        ? `${count(coverage.pagesScanned)} page${coverage.pagesScanned === 1 ? "" : "s"} scanned`
+        : `${count(coverage.itemsScanned)} record${coverage.itemsScanned === 1 ? "" : "s"} scanned`,
+    `${count(coverage.itemsExtracted)} extracted`,
+    `${count(coverage.itemsSkipped)} skipped`,
+    `${count(coverage.itemsTruncated)} truncated`,
+    `${count(coverage.itemsMissed)} missed`,
+  ];
+  if (coverage.pagesFailed > 0) parts.push(`${count(coverage.pagesFailed)} page${coverage.pagesFailed === 1 ? "" : "s"} failed`);
+  if ((coverage.messagesFailed ?? 0) > 0) parts.push(`${count(coverage.messagesFailed)} message${coverage.messagesFailed === 1 ? "" : "s"} failed`);
+  if ((coverage.attachmentsScanned ?? 0) > 0) parts.push(`${count(coverage.attachmentsTextExtracted)} of ${count(coverage.attachmentsScanned)} text attachments extracted`);
+  if ((coverage.attachmentsFailed ?? 0) > 0) parts.push(`${count(coverage.attachmentsFailed)} attachment${coverage.attachmentsFailed === 1 ? "" : "s"} missed`);
+  if ((coverage.pagesPending ?? 0) > 0) parts.push(`${count(coverage.pagesPending)} page${coverage.pagesPending === 1 ? "" : "s"} pending`);
+  if ((coverage.messagesPendingEstimate ?? 0) > 0) parts.push(`about ${count(coverage.messagesPendingEstimate)} messages pending`);
+  if (coverage.missedCountUnknown) parts.push("additional missed count unknown");
+  if (coverage.limitReached) parts.push("limit reached, continuing next run");
+  if (coverage.partial) parts.push("partial results");
+  if (coverage.scope) parts.push(coverage.scope);
+  return parts.join(" · ");
+};
 
 const sourceRunCaption = (run) => {
   if (!run.active) return "";
@@ -524,25 +679,31 @@ const renderSourceProgress = () => {
     return;
   }
   const activeEntry = sourcePlan.find((entry) => ["starting", "reading"].includes(sourceProgressEntry(entry.key)?.status));
+  const hasPartialCoverage = Object.values(state.sourceProgress ?? {}).some((entry) => entry.status === "partial" || entry.coverage?.partial);
   $("#source-progress-status").textContent = run.active
     ? activeEntry === undefined ? "Preparing" : "In progress"
-    : run.error ? "Needs attention" : "Last run";
+    : run.error ? "Needs attention" : hasPartialCoverage ? "Partial results" : "Last run";
   list.innerHTML = sourcePlan.map((entry) => {
     const progress = sourceProgressEntry(entry.key);
-    const status = progress?.status ?? (run.active ? "queued" : "skipped");
+    const enabled = state.settings?.enabled?.[entry.key] ?? true;
+    const status = progress?.status ?? (run.active && enabled ? "queued" : "skipped");
     const statusLabel = sourceStatusLabels[status] ?? "Waiting";
-    const detail = progress?.detail ?? (status === "queued" ? "Waiting for its turn" : "Not run yet");
+    const detail = progress?.detail ?? (!enabled ? "Disabled in settings" : status === "queued" ? "Waiting for its turn" : "Not run yet");
+    const coverageSummary = sourceCoverageSummary(progress?.coverage);
     return '<div class="source-progress-row is-' + escapeHtml(status) + '">' +
       '<span class="source-progress-dot" aria-hidden="true"></span>' +
       '<span class="source-progress-name">' + escapeHtml(entry.label) + '</span>' +
       '<span class="source-progress-detail">' + escapeHtml(detail) + '</span>' +
       '<span class="source-progress-state">' + escapeHtml(statusLabel) + '</span>' +
+      (coverageSummary ? '<span class="' + escapeHtml(sourceProgressStyles.coverage) + '">' + escapeHtml(coverageSummary) + '</span>' : '') +
       '</div>';
   }).join("");
   $("#next-action").textContent = run.active
     ? sourceRunCaption(run)
     : run.error
-      ? "The source that failed is isolated; run again after fixing that source."
+      ? "The source that failed is isolated. Run a new check after fixing it."
+      : hasPartialCoverage
+        ? "Some source results are partial. A saved cursor will continue any pending pages or messages on the next run."
       : "All planned sources have reached a completion state.";
 };
 
@@ -570,8 +731,8 @@ const renderReviewQueue = () => {
     return `<article class="review-card">
       <div class="review-meta"><span>${escapeHtml(meta.label)} · ${escapeHtml(humanize(entry.decision.decision))}</span><span class="review-confidence">${percent}% confidence</span></div>
       <button class="review-title plain-button" data-open-item="${escapeHtml(entry.item.id)}" type="button">${escapeHtml(cleanTitle(entry.item.title))}</button>
-      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Low confidence — check before acting.</div>
-      <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Mark reviewed</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss</button></div>
+      <div class="review-reason">${escapeHtml(decisionSummary(entry.decision))} · Low confidence. Check before acting.</div>
+      <div class="review-actions"><button class="approve" data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="approved" type="button">Mark reviewed</button><button data-review-item="${escapeHtml(entry.item.id)}" data-review-decision="${escapeHtml(entry.decision.decision)}" data-review-status="dismissed" type="button">Dismiss item</button></div>
     </article>`;
   }).join("");
 };
@@ -639,7 +800,7 @@ const renderActivity = () => {
     : run.completedAt
         ? { title: "Last run complete", detail: `${run.itemCount ?? 0} items · ${run.decisionCount ?? 0} decisions`, tone: "lime", at: run.completedAt }
         : state.data !== null
-          ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run again for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
+          ? { title: "Local state loaded", detail: `${state.data.metrics.total} items ready · run a new check for fresh data`, tone: "cyan", at: state.data.generatedAt ?? new Date().toISOString() }
           : { title: "Ready", detail: "Waiting for the first run", tone: "neutral", at: new Date().toISOString() };
   const events = state.events.length > 0 ? state.events : priorities.length > 0 ? priorities : [fallback];
   $("#activity-kicker").textContent = priorities.length > 0 && state.events.length === 0 ? "Priority" : "Recent activity";
@@ -648,7 +809,7 @@ const renderActivity = () => {
     const body = `<span class="activity-pip ${escapeHtml(event.tone)}"></span><span><span class="activity-title">${escapeHtml(event.title)}</span><span class="activity-detail">${escapeHtml(event.detail)}</span></span><span class="activity-time">${escapeHtml(relativeTime(event.at))}</span>`;
     return event.itemId === undefined
       ? `<div class="activity-row">${body}</div>`
-      : `<button class="activity-row activity-link" data-open-item="${escapeHtml(event.itemId)}" type="button" aria-label="Open ${escapeHtml(event.title)}">${body}<span class="activity-open" aria-hidden="true">↗</span></button>`;
+      : `<button class="activity-row activity-link" data-open-item="${escapeHtml(event.itemId)}" type="button" aria-label="Open ${escapeHtml(event.title)}">${body}</button>`;
   }).join("");
 };
 
@@ -679,12 +840,12 @@ const renderSourceVisual = () => {
     return totals;
   }, { email: 0, moodle: 0, github: 0, calendar: 0, work: 0, news: 0, edstem: 0, downloads: 0 });
   const sourceGroups = [
-    { key: "email", label: source("email").label, count: counts.email ?? 0, color: "var(--lime)" },
-    { key: "moodle", label: source("moodle").label, count: counts.moodle ?? 0, color: "var(--violet)" },
-    { key: "work", label: source("work").label, count: (counts.github ?? 0) + (counts.calendar ?? 0), color: "var(--cyan)" },
-    { key: "news", label: source("news").label, count: counts.news ?? 0, color: "var(--gold)" },
-    { key: "edstem", label: source("edstem").label, count: counts.edstem ?? 0, color: "var(--coral)" },
-    { key: "downloads", label: source("downloads").label, count: counts.downloads ?? 0, color: "var(--coral)" },
+    { key: "email", label: source("email").label, count: counts.email ?? 0, color: "var(--series-1)" },
+    { key: "moodle", label: source("moodle").label, count: counts.moodle ?? 0, color: "var(--series-2)" },
+    { key: "work", label: source("work").label, count: (counts.github ?? 0) + (counts.calendar ?? 0), color: "var(--series-3)" },
+    { key: "news", label: source("news").label, count: counts.news ?? 0, color: "var(--series-4)" },
+    { key: "edstem", label: source("edstem").label, count: counts.edstem ?? 0, color: "var(--series-2)" },
+    { key: "downloads", label: source("downloads").label, count: counts.downloads ?? 0, color: "var(--series-3)" },
   ];
   const total = sourceGroups.reduce((sum, group) => sum + group.count, 0);
   $("#donut-total").textContent = total;
@@ -705,6 +866,7 @@ const renderFocus = () => {
   const total = scopedItems.length;
   const signalCount = unread + deadlines + humanReview;
   $("#focus-score").textContent = signalCount;
+  $("#focus-score").closest(".focus-score")?.classList.remove("is-unavailable");
   $("#focus-score").setAttribute("aria-label", `${signalCount} signals needing a look`);
   $("#focus-breakdown").innerHTML = [
     ["Unread mail", unread],
@@ -787,6 +949,18 @@ const emptyStreamCopy = () => {
 };
 
 const renderStream = () => {
+  const streamTable = $("#stream-table");
+  if (state.data === null) {
+    const unavailable = connectionStatus === "reconnecting";
+    $("#stream-title").textContent = unavailable ? "Local activity unavailable" : "All items";
+    $("#stream-result-count").textContent = unavailable ? "Unavailable" : "Loading";
+    $("#stream-pagination").textContent = unavailable ? "Unavailable" : "Loading saved activity";
+    $("#stream-more").hidden = true;
+    streamTable.setAttribute("aria-busy", unavailable ? "false" : "true");
+    renderArcActivity(unavailable ? { kind: "unavailable", retry: () => fetchState().catch(() => {}) } : { kind: "loading" });
+    return;
+  }
+
   const items = filteredItems();
   const deadlineIds = upcomingDeadlineIds();
   $("#stream-title").textContent = state.query !== "" || state.course !== ""
@@ -801,31 +975,44 @@ const renderStream = () => {
   const visibleItems = items.slice(0, state.streamLimit);
   const filterSuffix = state.filter !== "all" || state.query || state.course ? " · filtered" : "";
   $("#stream-result-count").textContent = `${items.length} item${items.length === 1 ? "" : "s"}${filterSuffix}`;
+  streamTable.setAttribute("aria-busy", "false");
   if (items.length === 0) {
-    const clearAction = state.filter !== "all" || state.course !== "" || state.query !== ""
-      ? '<button class="empty-action" data-clear-filters type="button">Clear filters</button>'
-      : "";
     const copy = emptyStreamCopy();
-    $("#stream-table").innerHTML = `<div class="empty-state"><div><strong>${escapeHtml(copy.title)}</strong><p>${escapeHtml(copy.detail)}</p>${clearAction}</div></div>`;
+    renderArcActivity({
+      kind: "empty",
+      title: copy.title.replace(/[.!?]$/u, ""),
+      description: copy.detail,
+      clearFilters: state.filter !== "all" || state.course !== "" || state.query !== "",
+    });
     $("#stream-pagination").textContent = "Showing 0 items";
     $("#stream-more").hidden = true;
     return;
   }
-  $("#stream-table").innerHTML = visibleItems.map((item) => {
+  const rows = visibleItems.map((item) => {
     const meta = source(item.source);
     const title = cleanTitle(item.title);
     const pendingReviews = pendingReviewsByItem.get(item.id) ?? [];
     const weakest = pendingReviews.slice().sort((left, right) => confidence(left) - confidence(right))[0];
-    const hot = weakest && confidence(weakest) < 75;
+    const hot = Boolean(weakest && confidence(weakest) < 75);
     const unread = item.metadata?.unread === true;
     const isDeadline = deadlineIds.has(item.id);
     const isLesson = item.source === "edstem" && item.metadata?.kind === "lesson";
     const itemCourse = courseInfo(item);
-    const stateClass = hot ? "is-hot" : unread ? "is-unread" : isDeadline ? "is-deadline" : "is-neutral";
-    const stateText = hot ? `${confidence(weakest)}% review` : unread ? "unread" : isDeadline ? "deadline" : isLesson ? "lesson" : "observed";
     const subtitle = [itemCourse?.label, cleanDisplayText(item.content ?? "")].filter(Boolean).join(" · ").slice(0, 120);
-    return `<button class="stream-row" data-open-item="${escapeHtml(item.id)}" type="button" aria-label="Open ${escapeHtml(title)}"><span class="stream-signal"><span class="stream-icon ${escapeHtml(meta.className)}" aria-hidden="true">${escapeHtml(meta.icon)}</span><span><span class="stream-title">${escapeHtml(title)}</span><span class="stream-subtitle">${escapeHtml(subtitle)}</span></span></span><span class="stream-source">${escapeHtml(meta.label)}</span><span class="stream-when">${escapeHtml(relativeTime(itemDisplayTimestamp(item)))}</span><span class="stream-state ${stateClass}">${stateText}</span></button>`;
-  }).join("");
+    const timestamp = new Date(itemDisplayTimestamp(item));
+    const status = hot ? `${confidence(weakest)}% review` : unread ? "Unread" : isDeadline ? "Deadline" : isLesson ? "Lesson" : "Observed";
+    return {
+      id: item.id,
+      title,
+      subtitle,
+      source: meta.label,
+      sortTime: Number.isFinite(timestamp.getTime()) ? timestamp.toISOString() : "",
+      when: relativeTime(itemDisplayTimestamp(item)),
+      status,
+      tone: hot || isDeadline ? "warning" : unread ? "info" : "neutral",
+    };
+  });
+  renderArcActivity({ kind: "ready", rows });
   $("#stream-pagination").textContent = items.length > visibleItems.length
     ? `Showing ${visibleItems.length} of ${items.length} items`
     : `Showing all ${items.length} item${items.length === 1 ? "" : "s"}`;
@@ -839,7 +1026,7 @@ const resourceMarkup = (item) => {
   const links = resources
     .filter((resource) => resource && safeHttpUrl(resource.url))
     .slice(0, 20)
-    .map((resource) => `<a class="resource-link" href="${escapeHtml(resource.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(resource.title || "Resource")}</span><span>↗</span></a>`)
+    .map((resource) => `<a class="resource-link" href="${escapeHtml(resource.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(resource.title || "Open resource")}</span></a>`)
     .join("");
   return links.length === 0 ? "" : `<div class="detail-section resource-section"><h3>Lesson resources</h3><div class="resource-list">${links}</div></div>`;
 };
@@ -904,7 +1091,7 @@ const openItem = (itemId) => {
   const meta = source(item.source);
   const title = cleanTitle(item.title);
   const decisions = (state.data?.decisions ?? []).filter((decision) => decision.itemId === item.id);
-  const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "";
+  const url = safeHttpUrl(item.url) ? `<a class="detail-link" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open source</a>` : "";
   const dialog = $("#detail-dialog");
   lastFocusedElement = document.activeElement;
   const dateLabel = itemDateLabel(item);
@@ -1000,14 +1187,15 @@ const handleEvent = (event) => {
         label: payload.label,
         status: payload.status,
         ...(payload.detail === undefined ? {} : { detail: payload.detail }),
+        ...(payload.coverage === undefined ? {} : { coverage: payload.coverage }),
         updatedAt: payload.at,
       },
     };
-    if (["starting", "completed", "failed"].includes(payload.status)) {
+    if (["starting", "completed", "partial", "failed"].includes(payload.status)) {
       pushActivity(
         payload.label + " " + (payload.status === "completed" ? "complete" : payload.status),
         payload.detail ?? "Source progress updated",
-        payload.status === "failed" ? "coral" : payload.status === "completed" ? "cyan" : "lime",
+        payload.status === "failed" || payload.status === "partial" ? "coral" : payload.status === "completed" ? "cyan" : "lime",
         payload.at,
       );
     }
@@ -1083,10 +1271,6 @@ const handleEvent = (event) => {
 const runPulse = async (mock = false) => {
   if (runStarting || effectiveRun().active) return;
   armRunStarting();
-  const button = $("#run-button");
-  button.disabled = true;
-  button.classList.add("is-loading");
-  button.innerHTML = '<span class="run-icon">◌</span><span>Starting run</span>';
   renderHeader();
   renderPipeline();
   try {
@@ -1144,20 +1328,25 @@ const syncFilterScrollHint = () => {
 };
 
 const selectView = (view) => {
-  const control = view === "control";
-  state.view = control ? "control" : "everything";
-  $("#control-view").classList.toggle("is-hidden", !control);
-  $("#everything-view").classList.toggle("is-hidden", control);
+  const selected = ["control", "everything", "settings"].includes(view) ? view : "control";
+  state.view = selected;
+  $("#control-view").classList.toggle("is-hidden", selected !== "control");
+  $("#everything-view").classList.toggle("is-hidden", selected !== "everything");
+  $("#settings-view").classList.toggle("is-hidden", selected !== "settings");
   $$(".nav-item").forEach((button) => {
-    const active = button.dataset.view === state.view;
+    const active = button.dataset.view === selected;
     button.classList.toggle("is-active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
-  $("#crumb-view").textContent = control ? "Today" : "All activity";
+  $("#crumb-view").textContent = selected === "control" ? "Today" : selected === "everything" ? "All activity" : "Settings";
   syncFilterControls();
   window.requestAnimationFrame(syncFilterScrollHint);
-  if (!control && state.data !== null) renderActivityScope();
+  if (selected === "everything" && state.data !== null) renderActivityScope();
+  if (selected === "settings") {
+    renderSettings();
+    if (state.settings === null && !state.settingsLoading) fetchSettings().catch(() => {});
+  }
 };
 
 const revealActivityStream = () => {
@@ -1165,15 +1354,14 @@ const revealActivityStream = () => {
   window.requestAnimationFrame(() => $("#stream-panel")?.scrollIntoView({ behavior, block: "start" }));
 };
 
-$("#run-button").addEventListener("click", () => runPulse(false));
 $("#data-retry").addEventListener("click", async () => {
   const button = $("#data-retry");
   button.disabled = true;
-  button.textContent = "Trying…";
-  showDataBanner("Reconnecting", "Trying to read the local state again.");
+  button.textContent = "Refreshing…";
+  showDataBanner("Refreshing local data", "Reading the local state again.");
   try { await fetchState(); } catch {}
   button.disabled = false;
-  button.textContent = "Try again";
+  button.textContent = "Refresh local data";
 });
 $("#search-input").addEventListener("input", (event) => {
   state.query = event.target.value.trim();
@@ -1287,8 +1475,14 @@ window.setInterval(tickClock, 1_000);
 selectView(state.view);
 syncFilterControls();
 syncFilterScrollHint();
+renderMetrics();
+renderStream();
 renderHeader();
 renderPipeline();
 connectEvents();
 fetchState().catch(() => {});
+fetchSettings().catch(() => {});
 window.setInterval(() => fetchState().catch(() => {}), 10_000);
+window.setInterval(() => {
+  if (state.view === "settings") fetchSettings().catch(() => {});
+}, 2_500);

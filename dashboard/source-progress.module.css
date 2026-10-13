@@ -1,0 +1,22 @@
+.coverage {
+  grid-column: 2 / -1;
+  min-width: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+:global(.source-progress-row.is-partial .source-progress-dot) {
+  background: var(--warning);
+}
+
+:global(.source-progress-row.is-partial .source-progress-state) {
+  color: var(--warning);
+}
+
+@media (max-width: 700px) {
+  .coverage {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+}

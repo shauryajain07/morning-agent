@@ -5,7 +5,6 @@ export type BriefingInput = {
   items: AgentItem[];
   decisions: DecisionRecord[];
   actions: ActionRecord[];
-  newDeadlineIds: Set<string>;
   newItemIds: Set<string>;
 };
 
@@ -68,6 +67,8 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
     .filter((action) => action.status === "suggested")
     .map((action) => action.description);
   const lowConfidence: string[] = [];
+  const deadlineNow = input.now.getTime();
+  const deadlineCutoff = deadlineNow + 7 * 24 * 60 * 60 * 1_000;
 
   for (const item of input.items) {
     const actionDecision = decisionFor(input.decisions, item.id, "requiresAction");
@@ -105,7 +106,11 @@ export const createMorningReport = (input: BriefingInput): MorningReport => {
       }
     }
 
-    if (item.deadline !== undefined && input.newDeadlineIds.has(item.id)) {
+    if (
+      item.deadline !== undefined &&
+      item.deadline.getTime() >= deadlineNow &&
+      item.deadline.getTime() <= deadlineCutoff
+    ) {
       upcoming.push(formatUpcoming(item));
     }
 

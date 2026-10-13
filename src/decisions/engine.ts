@@ -27,36 +27,23 @@ export type DecisionEngine = {
   close?(): Promise<void>;
 };
 
-const urgencyCriteria = {
-  today: "The item needs attention today or is due within one day.",
-  soon: "The item needs attention within the next few days.",
-  later: "The item matters but can wait beyond the next few days.",
-  none: "No concrete action is needed.",
-} as const;
-
 const urgencyLevels = ["today", "soon", "later", "none"] as const;
-const urgencyRubric = [
-  urgencyCriteria.today,
-  urgencyCriteria.soon,
-  urgencyCriteria.later,
-  urgencyCriteria.none,
-] as const;
 
 const categoryCriteria = {
-  academic: "Coursework, teaching, exams, assignments, or university learning.",
-  administrative: "An official administrative or registration matter.",
-  project: "A work or software project that needs attention.",
-  personal: "A personal message or request.",
-  notification: "An automated alert or service notification.",
-  marketing: "A promotional, sales, or newsletter message.",
+  academic: "Coursework, teaching, exams, assignments, or university learning; use this for course work rather than university operations.",
+  administrative: "An official university, government, account, registration, payment, or policy matter that needs processing.",
+  project: "A concrete work or software project update, request, review, or issue; not a generic service notification.",
+  personal: "A direct message or request from a person about personal matters, not an automated service message.",
+  notification: "An automated status, receipt, security, delivery, or account alert that is not promotional.",
+  marketing: "A promotional offer, sales message, advertisement, or newsletter whose main purpose is to promote content or a product.",
 } as const;
 
 const fileTypeCriteria = {
-  lecture: "Lecture slides, recordings, or lecture material.",
-  assignment: "An assignment, problem set, or assessment.",
-  notes: "Study notes or reference notes.",
-  administrative: "An administrative document.",
-  other: "No other file type clearly fits.",
+  lecture: "Lecture slides, recordings, handouts, or other material presented as part of a lecture.",
+  assignment: "A problem set, lab sheet, project brief, quiz, exam, or other assessment task.",
+  notes: "Study notes, worked examples, formula sheets, or reference material for learning.",
+  administrative: "A form, policy, timetable, course outline, or other official administrative document.",
+  other: "The file does not clearly fit lecture material, an assessment, study notes, or an administrative document.",
 } as const;
 
 const courseCriteria: Record<string, string | null> = {
@@ -65,14 +52,50 @@ const courseCriteria: Record<string, string | null> = {
 };
 
 const newsCategoryCriteria = {
-  technology: "Technology, software, computing, or the internet.",
-  science: "Science, health research, or the natural world.",
-  business: "Business, markets, finance, or the economy.",
-  world: "International affairs, politics, or major world events.",
-  education: "Schools, universities, learning, or education policy.",
-  culture: "Arts, media, entertainment, sport, or culture.",
-  other: "It does not clearly fit another category.",
+  technology: "Technology, software, computing, AI, or the internet; choose this when technology is the main subject.",
+  science: "Scientific research, health research, medicine, or the natural world; choose this when science is the main subject.",
+  business: "Companies, markets, finance, jobs, or the economy.",
+  world: "International affairs, politics, conflict, government, or major public events.",
+  education: "Schools, universities, learning, or education policy; use this for a lesson whose topic is not more specifically science or technology.",
+  culture: "Arts, media, entertainment, sport, or broader cultural life.",
+  other: "The subject does not clearly fit any category above.",
 } as const;
+
+const urgencyRubricFor = (asOf: Date): readonly [string, string, string, string] => {
+  const timestamp = asOf.toISOString();
+  return [
+    `The action is overdue, must be done today, or is due within 24 hours of ${timestamp}.`,
+    `The action is due in 1 to 3 days after ${timestamp}, or clearly needs attention within the next few days.`,
+    `A specific unfinished action exists, but it can wait more than 3 days or has no near deadline.`,
+    "No specific, unfinished action is needed from the user.",
+  ];
+};
+
+const actionContextFor = (item: AgentItem): string => {
+  if (item.source === "email") {
+    return "Count only a specific, unfinished request or obligation directed to the user. Do not count FYI messages, optional suggestions, completed actions, or actions assigned to someone else.";
+  }
+  if (item.source === "github") {
+    return "Count only a review request, direct mention, assignment, or unresolved responsibility belonging to the user. Routine repository activity and work assigned to others do not count.";
+  }
+  if (item.source === "moodle" && isMoodleAssignment(item)) {
+    return "Count an unfinished submission or assessment obligation. Do not count an expired, cancelled, or clearly completed task.";
+  }
+  if (item.source === "moodle") {
+    return "Count only a specific current obligation for the user, such as responding to an announcement or completing a required step. File availability and routine course information alone do not count.";
+  }
+  if (item.source === "calendar") {
+    return "Count attendance or preparation only when the user has something specific to do. A date or event being present in the calendar does not by itself create a separate action.";
+  }
+  return "Count only a specific, unfinished action for the user. Information, optional suggestions, completed actions, and actions assigned to someone else do not count.";
+};
+
+const configuredCourseFor = (item: AgentItem): string | undefined => {
+  const value = item.metadata.course;
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toUpperCase();
+  return courseCodes.find((code) => code === normalized);
+};
 
 const moodleKind = (item: AgentItem): string | undefined => {
   const value = item.metadata.kind;
@@ -151,66 +174,95 @@ const toState = (item: AgentItem): EntryType => {
 
 const confidenceOfNoul = (value: number): number => Math.max(value, 1 - value);
 
-const createQuestions = (item: AgentItem): Questions => {
+const createQuestions = (item: AgentItem, asOf: Date): Questions => {
   if (item.source === "downloads") return {};
 
   if (item.source === "edstem" || item.source === "news") {
     return {
       worthReading: noul(
-        "Is this news article or EdStem lesson worth the user's limited reading time this morning?",
+        "Is this item worth prioritizing for the user's limited reading time this morning?",
         {
-          true: "It has clear relevance, novelty, importance, or useful insight for the user.",
-          false: "It is routine, low-relevance, repetitive, or not worth prioritizing this morning.",
+          true: "It contains a useful lesson, meaningful new information, a consequential development, or a clear insight relevant to the user's courses or interests.",
+          false: "It is routine, repetitive, low-information, promotional, or has little likely value to the user today.",
         },
       ),
-      newsCategory: choice("Which category best describes this news item or EdStem lesson?", newsCategoryCriteria),
+      newsCategory: choice("Which category best describes the item's main subject?", newsCategoryCriteria),
     };
   }
 
   const questions: Questions = {
     actionRequired: noul(
-      "Does this item require a concrete action from the user?",
-      { true: "The user must do something specific.", false: "No action is needed." },
+      `Does this item require a specific, unfinished action from the user? ${actionContextFor(item)}`,
+      {
+        true: "The user personally needs to do something specific that is still outstanding.",
+        false: "No outstanding action for the user is established by this item.",
+      },
     ),
-    urgency: score("What is the appropriate urgency for the action?", urgencyRubric),
+    urgency: score(
+      `How urgent is the user's action as of ${asOf.toISOString()}? Use the item's explicit deadline when present. Do not treat sent, received, published, or event dates as a due date.`,
+      urgencyRubricFor(asOf),
+    ),
   };
 
   if (item.source === "email") {
     questions.important = noul(
       "Is this email important enough to include in a concise morning briefing?",
-      { true: "It deserves the user's attention.", false: "It can be omitted from the briefing." },
+      {
+        true: "It is personally relevant, time-sensitive, consequential, or asks the user to make a decision or complete an important task.",
+        false: "It is routine, promotional, low-consequence, already resolved, or can safely wait without affecting the user.",
+      },
     );
     questions.emailCategory = choice("Which category best describes this email?", categoryCriteria);
     questions.requiresReply = noul(
-      "Does the user need to reply to this email?",
-      { true: "A reply or response is expected.", false: "No reply is expected." },
+      "Does this email expect a reply or response from the user?",
+      {
+        true: "The sender directly asks the user a question, requests a response, or needs the user's decision or confirmation.",
+        false: "It is informational, automated, no-reply, a bulk notice, or the user can act without sending a response.",
+      },
     );
     questions.hasDeadline = noul(
       "Does this email contain or represent a real deadline?",
-      { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
+      {
+        true: "The user must complete, respond, register, pay, or decide by a stated date or time.",
+        false: "It only mentions an event date, message date, availability date, or a date with no required action by then.",
+      },
     );
   }
 
   if (item.source === "calendar" || item.source === "moodle") {
     questions.hasDeadline = noul(
       "Does this calendar or Moodle item contain or represent a real deadline?",
-      { true: "There is a date or time by which something is due.", false: "There is no actionable deadline." },
+      {
+        true: "There is an explicit cutoff or due date by which the user must complete an action.",
+        false: "It is only an event start/end time, class time, publication date, or availability date, with no required action due then.",
+      },
     );
-    if (item.source === "calendar" || isMoodleAssignment(item)) {
+    if (isMoodleAssignment(item)) {
       questions.createEvent = noul(
-        "Should the application suggest creating a calendar event for this item?",
-        { true: "A calendar reminder would help the user.", false: "No calendar event is needed." },
+        "Would a separate calendar reminder help the user remember this Moodle assignment deadline?",
+        {
+          true: "The assignment has a real upcoming deadline and a reminder would help the user plan or submit on time.",
+          false: "The deadline is absent, past, already represented in the calendar, or a separate event would add no useful reminder.",
+        },
       );
     }
   }
 
   if (isMoodleCourseFile(item)) {
     questions.download = noul(
-      "Should the application download or retain this Moodle course file automatically?",
-      { true: "It is a useful course file and safe to download.", false: "Do not download it automatically." },
+      "Is this a course file worth keeping in the user's local course folder?",
+      {
+        true: "It is clearly relevant learning material, an assessment, or a useful course reference that appears intended for students.",
+        false: "It is unrelated, redundant, a temporary link, an administrative notice, or not clearly useful as a course file.",
+      },
     );
     questions.fileType = choice("What kind of Moodle course file is this?", fileTypeCriteria);
-    questions.course = choice("Which configured course does this Moodle item belong to?", courseCriteria);
+    if (configuredCourseFor(item) === undefined) {
+      questions.course = choice(
+        "Which configured course does this Moodle item belong to? Use the course code in its title, page context, or URL when clear.",
+        courseCriteria,
+      );
+    }
   }
 
   return questions;
@@ -304,7 +356,8 @@ export class JevDecisionEngine implements DecisionEngine {
   }
 
   public async evaluateItem(item: AgentItem): Promise<DecisionRecord[]> {
-    const questions = createQuestions(item);
+    const asOf = new Date();
+    const questions = createQuestions(item, asOf);
     if (Object.keys(questions).length === 0) return [];
 
     const evaluation = await this.client.evaluate(toState(item), questions);
@@ -325,10 +378,19 @@ export class JevDecisionEngine implements DecisionEngine {
 
     const actionRequiredValue = readNoul(answerMap, "actionRequired");
     const urgency = readScore(answerMap, "urgency");
+    const predictedUrgency = urgencyFromScore(urgency);
+    const actionRequired = actionRequiredValue >= 0.5;
+    const urgencyConflict = actionRequired ? predictedUrgency === "none" : predictedUrgency !== "none";
     const requiresAction: RequiresActionDecision = {
-      actionRequired: actionRequiredValue >= 0.5,
-      urgency: asUrgency(urgencyFromScore(urgency)),
-      confidence: Math.min(confidenceOfNoul(actionRequiredValue), urgency.confidence),
+      actionRequired,
+      urgency: !actionRequired
+        ? "none"
+        : asUrgency(predictedUrgency === "none" ? "later" : predictedUrgency),
+      confidence: Math.min(
+        confidenceOfNoul(actionRequiredValue),
+        urgency.confidence,
+        urgencyConflict ? 0.74 : 1,
+      ),
     };
     records.push(record(item, "requiresAction", requiresAction, evaluation.model));
 
@@ -359,17 +421,31 @@ export class JevDecisionEngine implements DecisionEngine {
     if (isMoodleCourseFile(item)) {
       const downloadValue = readNoul(answerMap, "download");
       const fileType = readChoice(answerMap, "fileType");
-      const course = readChoice(answerMap, "course");
+      const knownCourse = configuredCourseFor(item);
+      const course = knownCourse === undefined ? readChoice(answerMap, "course") : undefined;
       const downloadDecision: FileDownloadDecision = {
         download: downloadValue >= 0.5,
         fileType: asFileType(fileType.choice),
-        ...(course.choice === "other" ? {} : { course: course.choice }),
-        confidence: Math.min(confidenceOfNoul(downloadValue), fileType.confidence, course.confidence),
+        ...(knownCourse !== undefined
+          ? { course: knownCourse }
+          : course?.choice === "other"
+            ? {}
+            : course === undefined
+              ? {}
+              : { course: course.choice }),
+        confidence: Math.min(
+          confidenceOfNoul(downloadValue),
+          fileType.confidence,
+          course?.confidence ?? 1,
+        ),
       };
       records.push(record(item, "shouldDownloadFile", downloadDecision, evaluation.model));
     }
 
-    if (item.source === "calendar" || isMoodleAssignment(item)) {
+    if (item.source === "calendar") {
+      const calendarDecision: CalendarActionDecision = { createEvent: false, confidence: 1 };
+      records.push(record(item, "shouldCreateCalendarEvent", calendarDecision, evaluation.model));
+    } else if (isMoodleAssignment(item)) {
       const createEventValue = readNoul(answerMap, "createEvent");
       const deadline = item.deadline?.toISOString();
       const eventStart = item.deadline === undefined

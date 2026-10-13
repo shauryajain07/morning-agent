@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { runMorning } from "../index.js";
 import { defaultSettings } from "../config/settings.js";
 import { isSensitiveDownloadName, shouldIgnoreDownload } from "../collectors/downloads.js";
+import { confidenceThresholds } from "../policy/index.js";
 import { createStore, type MorningAgentStore } from "../storage/db.js";
 import {
   agentSources,
@@ -16,14 +17,25 @@ import {
   type MorningRunRecord,
   type MorningRunStage,
   type ReviewStatus,
+  type RunSourceKey,
   type RunSourceStatus,
+  type SourceCoverage,
   type StoredAgentItem,
 } from "../types/index.js";
+import {
+  cancelDashboardServiceLogin,
+  completeDashboardServiceLogin,
+  getDashboardSettings,
+  isDashboardServiceLoginKey,
+  saveDashboardPreferences,
+  shutdownDashboardServiceLogins,
+  startDashboardServiceLogin,
+} from "./serviceSettings.js";
 
-const dashboardRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../dashboard");
+const dashboardRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../dashboard/dist");
 const defaultHost = "127.0.0.1";
 const defaultPort = 4_782;
-const lowConfidenceThreshold = 0.75;
+const lowConfidenceThreshold = confidenceThresholds.suggested;
 const validMoodleAssignmentPath = /\/mod\/(?:assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
 const noisyMoodleAssignmentQuery = [
   "comment_itemid",
@@ -48,6 +60,8 @@ const contentTypes: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
 };
 
 type DashboardRunState = {
@@ -65,6 +79,7 @@ type DashboardRunState = {
     label: string;
     status: RunSourceStatus;
     detail?: string;
+    coverage?: SourceCoverage;
     updatedAt: string;
   }>;
 };
@@ -170,6 +185,15 @@ const dashboardRunStateFromRecord = (
     ...(latest.decisionCount === undefined ? {} : { decisionCount: latest.decisionCount }),
     ...(latest.actionCount === undefined ? {} : { actionCount: latest.actionCount }),
     ...(error === undefined ? {} : { error }),
+    ...(latest.sourceProgress === undefined ? {} : {
+      sourceProgress: Object.fromEntries(Object.entries(latest.sourceProgress).map(([source, progress]) => [source, {
+        label: progress.label,
+        status: progress.status,
+        updatedAt: progress.updatedAt.toISOString(),
+        ...(progress.detail === undefined ? {} : { detail: progress.detail }),
+        ...(progress.coverage === undefined ? {} : { coverage: progress.coverage }),
+      }])),
+    }),
   };
 };
 
@@ -263,6 +287,7 @@ const applyRunEvent = (event: MorningRunEvent): void => {
         label: event.label,
         status: event.status,
         ...(event.detail === undefined ? {} : { detail: event.detail }),
+        ...(event.coverage === undefined ? {} : { coverage: event.coverage }),
         updatedAt: event.at,
       };
       runState = {
@@ -384,7 +409,7 @@ const buildDashboardState = (): DashboardState => {
     const serializedDecisions = decisions.map(serializeDecision);
 
     const lowConfidence = decisions.flatMap((decision) => {
-      if (decision.output.confidence >= lowConfidenceThreshold) return [];
+      if (decision.output.confidence > lowConfidenceThreshold) return [];
       const item = serializedItemById.get(decision.itemId);
       if (item === undefined) return [];
       const review = reviewByKey.get(`${decision.itemId}:${decision.decision}`);
@@ -411,12 +436,16 @@ const buildDashboardState = (): DashboardState => {
     for (const item of items) sourceCounts[item.source] = (sourceCounts[item.source] ?? 0) + 1;
     const deadlineNow = Date.now();
     const deadlineCutoff = deadlineNow + 7 * 24 * 60 * 60 * 1_000;
+    const currentDeadlineByItem = new Map<string, number>();
+    for (const item of items) {
+      if (item.deadline !== undefined) currentDeadlineByItem.set(item.id, item.deadline.getTime());
+    }
     const deadlines = store.getDeadlines().filter((deadline) => {
       const timestamp = deadline.deadline.getTime();
       return (
         timestamp >= deadlineNow &&
         timestamp <= deadlineCutoff &&
-        items.some((item) => item.id === deadline.id)
+        currentDeadlineByItem.get(deadline.id) === timestamp
       );
     });
     const actions = store.getActions();
@@ -491,13 +520,14 @@ const readBody = async (request: IncomingMessage): Promise<unknown> => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const startRun = (mock: boolean): void => {
+const startRun = (mock: boolean, sourceOrder: RunSourceKey[]): void => {
   if (activeRun !== undefined) return;
   activeRun = runMorning({
     dryRun: true,
     mock,
     verbose: false,
     persist: true,
+    sourceOrder,
     onEvent: (event) => {
       applyRunEvent(event);
       broadcast(event);
@@ -538,6 +568,56 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
     return true;
   }
 
+  if (request.method === "GET" && pathname === "/api/settings") {
+    sendJson(response, 200, await getDashboardSettings());
+    return true;
+  }
+
+  if (request.method === "POST" && pathname === "/api/settings") {
+    let body: unknown;
+    try {
+      body = await readBody(request);
+      sendJson(response, 200, await saveDashboardPreferences(body));
+    } catch (error: unknown) {
+      sendError(response, 400, error instanceof Error ? error.message : "Could not save service settings.");
+    }
+    return true;
+  }
+
+  if (request.method === "POST" && pathname.startsWith("/api/settings/login")) {
+    if (activeRun !== undefined || runState.active) {
+      sendError(response, 409, "Wait for the current run to finish before signing in.");
+      return true;
+    }
+    let body: unknown;
+    try {
+      body = await readBody(request);
+    } catch (error: unknown) {
+      sendError(response, 400, error instanceof Error ? error.message : "Invalid request.");
+      return true;
+    }
+    if (!isRecord(body) || !isDashboardServiceLoginKey(body.service)) {
+      sendError(response, 400, "Choose a service that supports sign-in.");
+      return true;
+    }
+    const service = body.service;
+    try {
+      if (pathname === "/api/settings/login") {
+        const result = await startDashboardServiceLogin(service);
+        sendJson(response, 202, { ...result, settings: await getDashboardSettings() });
+      } else if (pathname === "/api/settings/login/complete") {
+        sendJson(response, 200, await completeDashboardServiceLogin(service));
+      } else if (pathname === "/api/settings/login/cancel") {
+        sendJson(response, 200, await cancelDashboardServiceLogin(service));
+      } else {
+        sendError(response, 404, "Sign-in action not found.");
+      }
+    } catch (error: unknown) {
+      sendError(response, 400, error instanceof Error ? error.message : "Sign-in could not be completed.");
+    }
+    return true;
+  }
+
   if (request.method === "POST" && pathname === "/api/run") {
     refreshPersistedRunState();
     if (activeRun !== undefined || runState.active) {
@@ -552,8 +632,18 @@ const handleApi = async (request: IncomingMessage, response: ServerResponse, pat
       return true;
     }
     const mock = isRecord(body) && body.mock === true;
-    startRun(mock);
-    sendJson(response, 202, { ok: true, mode: mock ? "demo" : "live" });
+    try {
+      const settings = await getDashboardSettings();
+      const sourceOrder = settings.order.filter((source) => settings.enabled[source]);
+      if (sourceOrder.length === 0) {
+        sendError(response, 400, "Enable at least one service in Settings before running a check.");
+        return true;
+      }
+      startRun(mock, sourceOrder);
+      sendJson(response, 202, { ok: true, mode: mock ? "demo" : "live", sourceOrder });
+    } catch (error: unknown) {
+      sendError(response, 500, error instanceof Error ? error.message : "Could not read service settings.");
+    }
     return true;
   }
 
@@ -645,6 +735,7 @@ export const startDashboardServer = (options: { host?: string; port?: number } =
         }
       });
   });
+  server.on("close", () => { void shutdownDashboardServiceLogins(); });
 
   server.listen(port, host, () => {
     console.log(`Morning Agent dashboard: http://${host}:${port}`);

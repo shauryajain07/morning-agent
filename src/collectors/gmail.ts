@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 
 import { z } from "zod";
 
-import type { AgentItem } from "../types/index.js";
+import type { AgentItem, SourceCoverage } from "../types/index.js";
+import type { BrowserNavigationProgress } from "./browserReliability.js";
 
 export type GmailMessageSnapshot = {
   id: string;
@@ -18,6 +19,7 @@ export type GmailMessageSnapshot = {
 export type GmailMessagePart = {
   mimeType?: string | undefined;
   filename?: string | undefined;
+  attachmentTextMissed?: boolean | undefined;
   headers?: GmailHeader[] | undefined;
   body?: GmailMessageBody | undefined;
   parts?: GmailMessagePart[] | undefined;
@@ -31,6 +33,7 @@ export type GmailHeader = {
 export type GmailMessageBody = {
   data?: string | undefined;
   attachmentId?: string | undefined;
+  size?: number | undefined;
 };
 
 export type GmailProviderOptions = {
@@ -98,6 +101,7 @@ const gmailListSchema = z
   .object({
     messages: z.array(z.object({ id: z.string().min(1), threadId: z.string().optional() })).optional(),
     nextPageToken: z.string().optional(),
+    resultSizeEstimate: z.number().optional(),
   })
   .passthrough();
 const tokenResponseSchema = z
@@ -181,6 +185,42 @@ const messageBody = (message: GmailMessageSnapshot): string => {
   return html.slice(0, 8_000);
 };
 
+type GmailAttachmentPart = GmailMessagePart & { body: GmailMessageBody };
+
+const attachmentParts = (part: GmailMessagePart | undefined): GmailAttachmentPart[] => {
+  if (part === undefined) return [];
+  const current = part.filename !== undefined && part.filename.length > 0 && part.body !== undefined
+    ? [part as GmailAttachmentPart]
+    : [];
+  return [...current, ...(part.parts ?? []).flatMap(attachmentParts)];
+};
+
+const textAttachmentType = (part: GmailAttachmentPart): boolean =>
+  /^(?:text\/(?:plain|html|csv)|application\/(?:json|xml))$/iu.test(part.mimeType ?? "") ||
+  /\.(?:txt|md|csv|json|xml|html?)$/iu.test(part.filename ?? "");
+
+const textAttachmentContent = (message: GmailMessageSnapshot): string => attachmentParts(message.payload)
+  .filter((part) => part.body.data !== undefined && textAttachmentType(part))
+  .map((part) => {
+    const decoded = decodeBase64Url(part.body.data ?? "");
+    return (part.mimeType?.toLowerCase() === "text/html" || /\.html?$/iu.test(part.filename ?? ""))
+      ? htmlToText(decoded)
+      : cleanText(decoded);
+  })
+  .filter(Boolean)
+  .join("\n");
+
+const rawDateFor = (message: GmailMessageSnapshot): string | undefined => headerValue(message.payload, "Date");
+
+const metadataAttachments = (message: GmailMessageSnapshot): Array<Record<string, unknown>> =>
+  attachmentParts(message.payload).map((part) => ({
+    filename: part.filename,
+    mimeType: part.mimeType ?? "unknown",
+    ...(part.body.size === undefined ? {} : { sizeBytes: part.body.size }),
+    textExtracted: part.body.data !== undefined && textAttachmentType(part),
+    ...(part.attachmentTextMissed === true ? { textExtractionFailed: true } : {}),
+  }));
+
 const parseSender = (value: string | undefined): { sender: string; senderEmail?: string } => {
   const decoded = decodeMimeHeader(value ?? "");
   const match = decoded.match(/^(.*?)\s*<([^>]+)>\s*$/u);
@@ -207,8 +247,8 @@ const receivedAtFor = (message: GmailMessageSnapshot): Date | undefined => {
   return Number.isFinite(value.getTime()) ? value : undefined;
 };
 
-const itemIdFor = (message: GmailMessageSnapshot, sender: string, title: string, receivedAt: Date): string => {
-  const stableKey = message.id || `${sender}|${title}|${receivedAt.toISOString()}`;
+const itemIdFor = (message: GmailMessageSnapshot, sender: string, title: string, receivedAt?: Date): string => {
+  const stableKey = message.id || `${sender}|${title}|${receivedAt?.toISOString() ?? rawDateFor(message) ?? "unknown"}`;
   return `gmail:${createHash("sha256").update(stableKey).digest("hex").slice(0, 24)}`;
 };
 
@@ -223,27 +263,37 @@ export const extractGmailEmailItems = (
 
   for (const message of messages) {
     const receivedAt = receivedAtFor(message);
-    if (receivedAt === undefined || receivedAt.getTime() < cutoff || receivedAt.getTime() > latestAllowed) continue;
+    if (receivedAt !== undefined && (receivedAt.getTime() < cutoff || receivedAt.getTime() > latestAllowed)) continue;
 
     const senderInfo = parseSender(headerValue(message.payload, "From"));
     const subject = decodeMimeHeader(headerValue(message.payload, "Subject") ?? "");
     const title = cleanText(subject) || cleanText(message.snippet ?? "") || "Gmail email";
     const body = messageBody(message);
-    const content = body || cleanText(message.snippet ?? "") || `${senderInfo.sender}: ${title}`;
+    const attachmentText = textAttachmentContent(message);
+    const attachments = metadataAttachments(message);
+    const fullContent = [body, attachmentText.length === 0 ? "" : `Attachment text:\n${attachmentText}`]
+      .filter(Boolean)
+      .join("\n\n") || cleanText(message.snippet ?? "") || `${senderInfo.sender}: ${title}`;
+    const content = fullContent.slice(0, 8_000);
+    const rawDate = rawDateFor(message);
     const item: AgentItem = {
       id: itemIdFor(message, senderInfo.sender, title, receivedAt),
       source: "email",
       title: title.slice(0, 240),
-      content: content.slice(0, 8_000),
+      content,
       url: `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(message.id)}`,
-      createdAt: receivedAt,
+      ...(receivedAt === undefined ? {} : { createdAt: receivedAt }),
       metadata: {
         provider: "gmail",
         sender: senderInfo.sender,
         ...(senderInfo.senderEmail === undefined ? {} : { senderEmail: senderInfo.senderEmail }),
         unread: message.labelIds?.includes("UNREAD") ?? false,
         ...(message.threadId === undefined ? {} : { threadId: message.threadId }),
-        receivedAt: receivedAt.toISOString(),
+        ...(receivedAt === undefined
+          ? { dateStatus: "unknown", ...(rawDate === undefined ? {} : { rawDate }) }
+          : { receivedAt: receivedAt.toISOString(), dateStatus: "parsed" }),
+        ...(attachments.length === 0 ? {} : { attachments }),
+        ...(fullContent.length > 8_000 || body.length >= 8_000 ? { contentTruncated: true } : {}),
       },
     };
     if (!items.has(item.id)) items.set(item.id, item);
@@ -388,67 +438,223 @@ class GmailApiClient {
   }
 }
 
+type GmailListResult = {
+  ids: string[];
+  pages: number;
+  nextCursor: string | null;
+  messagesPendingEstimate?: number;
+  limitReached: boolean;
+};
+
 const listMessageIds = async (
   client: GmailApiClient,
   options: GmailProviderOptions,
-): Promise<string[]> => {
+  resumeCursor?: string,
+  onPageScanned?: (pagesScanned: number, messagesScanned: number) => void,
+): Promise<GmailListResult> => {
   const maxMessages = options.maxMessages ?? defaultMaxMessages;
   const lookbackHours = options.lookbackHours ?? defaultLookbackHours;
   const query = options.query ?? `newer_than:${Math.max(1, Math.ceil(lookbackHours / 24))}d`;
   const ids: string[] = [];
   let pageToken: string | undefined;
+  let pages = 0;
+  let nextCursor: string | null = null;
+  let resultSizeEstimate: number | undefined;
+
+  const requestPage = async (token?: string, maxResults = 500) => {
+    const params = new URLSearchParams({ maxResults: String(maxResults), q: query });
+    if (options.includeSpamTrash === true) params.set("includeSpamTrash", "true");
+    if (token !== undefined) params.set("pageToken", token);
+    const response = gmailListSchema.parse(await client.get(`${options.userId ?? "me"}/messages`, params));
+    pages += 1;
+    return response;
+  };
+
+  const reportPageScanned = (): void => onPageScanned?.(pages, ids.length);
+
+  if (resumeCursor !== undefined) {
+    const freshPage = await requestPage(undefined, Math.min(100, maxMessages));
+    resultSizeEstimate = freshPage.resultSizeEstimate;
+    for (const message of freshPage.messages ?? []) {
+      if (!ids.includes(message.id)) ids.push(message.id);
+      if (ids.length >= maxMessages) break;
+    }
+    reportPageScanned();
+    if (ids.length >= maxMessages) {
+      return {
+        ids,
+        pages,
+        nextCursor: resumeCursor,
+        ...(resultSizeEstimate === undefined ? {} : { messagesPendingEstimate: Math.max(0, resultSizeEstimate - ids.length) }),
+        limitReached: true,
+      };
+    }
+    if (freshPage.nextPageToken === undefined) {
+      return { ids, pages, nextCursor: null, limitReached: false };
+    }
+    pageToken = resumeCursor;
+  }
 
   while (ids.length < maxMessages) {
-    const params = new URLSearchParams({
-      maxResults: String(Math.min(500, maxMessages - ids.length)),
-      q: query,
-    });
-    if (options.includeSpamTrash === true) params.set("includeSpamTrash", "true");
-    if (pageToken !== undefined) params.set("pageToken", pageToken);
-    const response = gmailListSchema.parse(await client.get(`${options.userId ?? "me"}/messages`, params));
+    let response: z.infer<typeof gmailListSchema>;
+    try {
+      response = await requestPage(pageToken, Math.min(500, maxMessages - ids.length));
+    } catch (error: unknown) {
+      if (resumeCursor !== undefined && pageToken === resumeCursor && error instanceof GmailApiError && error.status === 400) {
+        pageToken = undefined;
+        resumeCursor = undefined;
+        continue;
+      }
+      throw error;
+    }
+    resultSizeEstimate = response.resultSizeEstimate ?? resultSizeEstimate;
     for (const message of response.messages ?? []) {
       if (!ids.includes(message.id)) ids.push(message.id);
       if (ids.length >= maxMessages) break;
     }
-    if (ids.length >= maxMessages || response.nextPageToken === undefined) break;
+    reportPageScanned();
+    if (ids.length >= maxMessages || response.nextPageToken === undefined) {
+      nextCursor = ids.length >= maxMessages ? response.nextPageToken ?? null : null;
+      break;
+    }
     pageToken = response.nextPageToken;
   }
 
-  return ids;
+  return {
+    ids,
+    pages,
+    nextCursor,
+    ...(nextCursor === null || resultSizeEstimate === undefined ? {} : { messagesPendingEstimate: Math.max(0, resultSizeEstimate - ids.length) }),
+    limitReached: ids.length >= maxMessages && nextCursor !== null,
+  };
 };
 
 const getMessages = async (
   client: GmailApiClient,
   userId: string,
   messageIds: readonly string[],
-): Promise<GmailMessageSnapshot[]> => {
+): Promise<{ messages: GmailMessageSnapshot[]; failedCount: number }> => {
   const messages: GmailMessageSnapshot[] = [];
+  let failedCount = 0;
   const batchSize = 8;
   for (let index = 0; index < messageIds.length; index += batchSize) {
     const batch = messageIds.slice(index, index + batchSize);
     const values = await Promise.all(
       batch.map(async (id) => {
-        const response = await client.get(
-          `${userId}/messages/${id}`,
-          new URLSearchParams({ format: "full" }),
-        );
-        return gmailMessageSchema.parse(response);
+        try {
+          const message = gmailMessageSchema.parse(await client.get(
+            `${userId}/messages/${id}`,
+            new URLSearchParams({ format: "full" }),
+          ));
+          const candidates = attachmentParts(message.payload)
+            .filter((part) => part.body.attachmentId !== undefined && textAttachmentType(part))
+            .slice(0, 5);
+          await Promise.all(candidates.map(async (part) => {
+            const attachmentId = part.body.attachmentId;
+            if (attachmentId === undefined) return;
+            try {
+              const attachment = recordFromUnknown(await client.get(
+                `${userId}/messages/${id}/attachments/${attachmentId}`,
+                new URLSearchParams(),
+              ));
+              if (typeof attachment.data === "string") part.body.data = attachment.data;
+            } catch {
+              // Attachment details are useful when available. A blocked or unavailable
+              // attachment must not hide the message itself.
+              part.attachmentTextMissed = true;
+            }
+          }));
+          return message;
+        } catch {
+          failedCount += 1;
+          return undefined;
+        }
       }),
     );
-    messages.push(...values);
+    messages.push(...values.filter((value): value is GmailMessageSnapshot => value !== undefined));
   }
-  return messages;
+  return { messages, failedCount };
 };
+
+const emptyCoverage = (): SourceCoverage => ({
+  pagesScanned: 0,
+  messagesScanned: 0,
+  itemsScanned: 0,
+  itemsExtracted: 0,
+  itemsSkipped: 0,
+  itemsTruncated: 0,
+  itemsMissed: 0,
+  pagesFailed: 0,
+  pagesPending: 0,
+  messagesPendingEstimate: 0,
+  missedCountUnknown: false,
+  limitReached: false,
+  partial: false,
+});
 
 export const collectGmailEmailItemsFromApi = async (
   options: GmailProviderOptions,
   now = new Date(),
+  onProgress?: (progress: BrowserNavigationProgress) => void,
+  resumeCursor?: string,
 ): Promise<AgentItem[]> => {
   const auth = await resolveGmailAuth(options);
   const client = new GmailApiClient(auth, options.timeoutMs ?? defaultTimeoutMs);
-  const messageIds = await listMessageIds(client, options);
-  const messages = await getMessages(client, options.userId ?? "me", messageIds);
-  return extractGmailEmailItems(messages, now, options.lookbackHours ?? defaultLookbackHours);
+  let coverage = emptyCoverage();
+  onProgress?.({ phase: "navigating", url: "https://gmail.googleapis.com/gmail/v1/users", title: "Listing messages", coverage });
+  let listed: GmailListResult;
+  try {
+    listed = await listMessageIds(client, options, resumeCursor, (pagesScanned, messagesScanned) => {
+      coverage = { ...coverage, pagesScanned, messagesScanned, itemsScanned: messagesScanned };
+      onProgress?.({
+        phase: "ready",
+        url: "https://gmail.googleapis.com/gmail/v1/users",
+        title: `Scanned ${pagesScanned} message-list page${pagesScanned === 1 ? "" : "s"}`,
+        coverage,
+      });
+    });
+  } catch (error: unknown) {
+    coverage = { ...coverage, pagesFailed: 1, missedCountUnknown: true, partial: true };
+    onProgress?.({ phase: "failed", url: "https://gmail.googleapis.com/gmail/v1/users", title: "Gmail message listing failed", coverage });
+    throw error;
+  }
+  coverage = { ...coverage, pagesScanned: listed.pages, messagesScanned: listed.ids.length, itemsScanned: listed.ids.length };
+  onProgress?.({
+    phase: "ready",
+    url: "https://gmail.googleapis.com/gmail/v1/users",
+    title: `Listed ${listed.ids.length} messages`,
+    coverage,
+    cursor: listed.nextCursor,
+  });
+  const fetched = await getMessages(client, options.userId ?? "me", listed.ids);
+  const items = extractGmailEmailItems(fetched.messages, now, options.lookbackHours ?? defaultLookbackHours);
+  const truncated = items.filter((item) => item.metadata.contentTruncated === true).length;
+  const textAttachments = fetched.messages.flatMap((message) => attachmentParts(message.payload)).filter(textAttachmentType);
+  const attachmentMissed = textAttachments.filter((part) => part.attachmentTextMissed === true).length;
+  const attachmentsTextExtracted = textAttachments.filter((part) => part.body.data !== undefined && part.attachmentTextMissed !== true).length;
+  coverage = {
+    ...coverage,
+    itemsExtracted: items.length,
+    itemsSkipped: Math.max(0, fetched.messages.length - items.length),
+    itemsTruncated: truncated,
+    itemsMissed: fetched.failedCount + attachmentMissed,
+    messagesFailed: fetched.failedCount,
+    attachmentsScanned: textAttachments.length,
+    attachmentsTextExtracted,
+    attachmentsFailed: attachmentMissed,
+    ...(listed.messagesPendingEstimate === undefined ? {} : { messagesPendingEstimate: listed.messagesPendingEstimate }),
+    missedCountUnknown: listed.limitReached && listed.messagesPendingEstimate === undefined,
+    limitReached: listed.limitReached,
+    partial: listed.limitReached || fetched.failedCount > 0 || attachmentMissed > 0 || truncated > 0,
+  };
+  onProgress?.({
+    phase: "ready",
+    url: "https://gmail.googleapis.com/gmail/v1/users",
+    title: `Fetched ${items.length} full messages`,
+    coverage,
+    cursor: listed.nextCursor,
+  });
+  return items;
 };
 
 const nonEmptyEnvironmentValue = (key: string): string | undefined => nonEmpty(process.env[key]);
@@ -477,7 +683,12 @@ export const gmailOptionsFromEnvironment = (): GmailProviderOptions => {
   const clientSecret = nonEmptyEnvironmentValue("GMAIL_CLIENT_SECRET");
   const refreshToken = nonEmptyEnvironmentValue("GMAIL_REFRESH_TOKEN");
   const credentialsPath = nonEmptyEnvironmentValue("GMAIL_CREDENTIALS_PATH");
-  const tokenPath = nonEmptyEnvironmentValue("GMAIL_TOKEN_PATH");
+  const configuredTokenPath = nonEmptyEnvironmentValue("GMAIL_TOKEN_PATH");
+  const tokenPath = configuredTokenPath ?? (
+    (clientId !== undefined && clientSecret !== undefined) || credentialsPath !== undefined
+      ? ".gmail-token.json"
+      : undefined
+  );
   const explicitEnabled = booleanEnvironmentValue("GMAIL_ENABLED");
   const enabled = explicitEnabled ?? [accessToken, clientId, clientSecret, refreshToken, credentialsPath, tokenPath].some(
     (value) => value !== undefined,
@@ -507,8 +718,13 @@ export const gmailOptionsFromEnvironment = (): GmailProviderOptions => {
   return options;
 };
 
-export const collectGmailEmailItems = async (): Promise<AgentItem[]> => {
+export const collectGmailEmailItems = async (
+  onProgress?: (progress: BrowserNavigationProgress) => void,
+  resumeCursor?: string,
+  forceEnabled = false,
+): Promise<AgentItem[]> => {
   const options = gmailOptionsFromEnvironment();
-  if (!options.enabled) return [];
-  return collectGmailEmailItemsFromApi(options);
+  if (!options.enabled && !forceEnabled) return [];
+  if (forceEnabled) options.enabled = true;
+  return collectGmailEmailItemsFromApi(options, new Date(), onProgress, resumeCursor);
 };

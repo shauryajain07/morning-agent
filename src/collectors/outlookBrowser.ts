@@ -14,7 +14,7 @@ import {
   waitBeforeNavigation,
   waitForPageReady,
 } from "./browserReliability.js";
-import type { AgentItem } from "../types/index.js";
+import type { AgentItem, SourceCoverage } from "../types/index.js";
 
 export type OutlookMessageSnapshot = {
   id: string;
@@ -23,6 +23,10 @@ export type OutlookMessageSnapshot = {
   href: string;
   dateText: string;
   unread: boolean;
+  rowTruncated?: boolean;
+  bodyText?: string;
+  contentTruncated?: boolean;
+  attachments?: Array<{ filename: string; contentType?: string; sizeText?: string }>;
 };
 
 export type OutlookBrowserOptions = {
@@ -36,6 +40,7 @@ export type OutlookBrowserOptions = {
   settleDelayMs?: number;
   lookbackHours?: number;
   maxScrolls?: number;
+  maxMessages?: number;
   onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
@@ -52,7 +57,8 @@ export class OutlookAuthenticationRequiredError extends Error {
 const defaultTimeoutMs = 15_000;
 const defaultLoginTimeoutMs = 5 * 60 * 1_000;
 const defaultLookbackHours = 24;
-const defaultMaxScrolls = 6;
+const defaultMaxScrolls = 120;
+const defaultMaxMessages = 500;
 const defaultProfileDirectory = join(process.cwd(), ".outlook-browser-profile");
 const allowedOutlookHosts = new Set([
   "outlook.office.com",
@@ -88,7 +94,8 @@ const snapshotScript = String.raw`(() => {
     const rect = row.getBoundingClientRect();
     const style = window.getComputedStyle(row);
     if (rect.width < 2 || rect.height < 2 || style.display === "none" || style.visibility === "hidden") continue;
-    const text = cleanLines(row.innerText).slice(0, 4000);
+    const rawText = cleanLines(row.innerText);
+    const text = rawText.slice(0, 4000);
     const ariaLabel = cleanLines(row.getAttribute("aria-label")).slice(0, 4000);
     if (text.length < 8 && ariaLabel.length < 8) continue;
     const id = row.getAttribute("data-convid") || row.getAttribute("data-conversation-id") || row.getAttribute("data-item-id") || row.id || "";
@@ -105,7 +112,7 @@ const snapshotScript = String.raw`(() => {
     const dateText = clean(time && (time.getAttribute("datetime") || time.innerText) || titled);
     const unread = /\bunread\b/iu.test(ariaLabel + " " + String(row.className)) || Boolean(row.querySelector('[aria-label*="Unread" i]'));
     if (/^(focused inbox|other|filter|sort|select all|new mail)$/iu.test(text)) continue;
-    records.push({ id, text, ariaLabel, href, dateText, unread });
+    records.push({ id, text, ariaLabel, href, dateText, unread, rowTruncated: rawText.length > 4000 });
     if (records.length >= 300) break;
   }
   return records;
@@ -130,6 +137,46 @@ const scrollScript = String.raw`(() => {
 
 const snapshotPage = async (page: Page): Promise<OutlookMessageSnapshot[]> =>
   (await page.evaluate(snapshotScript)) as OutlookMessageSnapshot[];
+
+const messageBodyScript = String.raw`(() => {
+  const clean = (value) => (value || "").replace(/\s+/gu, " ").trim();
+  const main = document.querySelector('[role="main"]');
+  const candidates = [
+    document.querySelector('[role="document"]'),
+    document.querySelector('[aria-label*="message body" i]'),
+    document.querySelector('[data-app-section="MailReadCompose"]'),
+    main,
+  ].filter(Boolean);
+  const text = candidates.map((node) => clean(node.innerText)).find((value) => value.length > 0) || clean(document.body && document.body.innerText);
+  const attachments = [];
+  const seen = new Set();
+  for (const node of Array.from(document.querySelectorAll('[aria-label*="attachment" i], [data-testid*="attachment" i]'))) {
+    const label = clean(node.getAttribute("aria-label") || node.innerText || node.getAttribute("title"));
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    attachments.push({ filename: label.slice(0, 240) });
+    if (attachments.length >= 30) break;
+  }
+  return { text, attachments };
+})()`;
+
+type OutlookMessageBody = { text: string; attachments: Array<{ filename: string }> };
+
+const messageBodyPage = async (page: Page): Promise<OutlookMessageBody> =>
+  (await page.evaluate(messageBodyScript)) as OutlookMessageBody;
+
+const emptyCoverage = (): SourceCoverage => ({
+  pagesScanned: 0,
+  messagesScanned: 0,
+  itemsScanned: 0,
+  itemsExtracted: 0,
+  itemsSkipped: 0,
+  itemsTruncated: 0,
+  itemsMissed: 0,
+  pagesFailed: 0,
+  limitReached: false,
+  partial: false,
+});
 
 const uniqueSnapshots = (snapshots: readonly OutlookMessageSnapshot[]): OutlookMessageSnapshot[] => {
   const output = new Map<string, OutlookMessageSnapshot>();
@@ -205,7 +252,7 @@ export class OutlookBrowserSession {
     return this.failure !== undefined || this.page?.isClosed() === true;
   }
 
-  public async gotoInbox(): Promise<OutlookMessageSnapshot[]> {
+  public async gotoInbox(resumeCursor?: string): Promise<OutlookMessageSnapshot[]> {
     const page = await this.open();
     this.lastNavigationAt = await waitBeforeNavigation(page, this.lastNavigationAt, this.navigationDelayMs);
     this.options.onProgress?.({ phase: "navigating", url: this.options.baseUrl });
@@ -217,21 +264,108 @@ export class OutlookBrowserSession {
       await waitForPageReady(page, this.timeoutMs, this.settleDelayMs);
       await this.waitForAuthentication(page);
 
-      const snapshots: OutlookMessageSnapshot[] = [];
+      const snapshots = new Map<string, OutlookMessageSnapshot>();
       const maxScrolls = this.options.maxScrolls ?? defaultMaxScrolls;
+      const maxMessages = this.options.maxMessages ?? defaultMaxMessages;
+      let unchangedPasses = 0;
+      let limitReached = false;
+      let pagesScanned = 0;
+      let snapshotCapHits = 0;
+      let resumeFound = resumeCursor === undefined;
       for (let index = 0; index <= maxScrolls; index += 1) {
-        snapshots.push(...(await snapshotPage(page)));
+        pagesScanned = index + 1;
+        const beforeCount = snapshots.size;
+        const pageRecords = await snapshotPage(page);
+        if (pageRecords.length >= 300) snapshotCapHits += 1;
+        for (const snapshot of pageRecords) {
+          const key = snapshot.id || snapshot.href || `${snapshot.text}|${snapshot.dateText}`;
+          if (!snapshots.has(key)) snapshots.set(key, snapshot);
+          if (key === resumeCursor) resumeFound = true;
+        }
+        const records = Array.from(snapshots.values());
+        const resumeIndex = resumeCursor === undefined
+          ? -1
+          : records.findIndex((record) => (record.id || record.href || `${record.text}|${record.dateText}`) === resumeCursor);
+        if (resumeIndex >= 0) resumeFound = true;
+        const eligibleRecords = resumeCursor === undefined
+          ? records
+          : resumeIndex >= 0
+            ? records.slice(resumeIndex + 1)
+            : [];
+        const overMessageCap = eligibleRecords.length >= maxMessages;
+        if (overMessageCap) limitReached = true;
+        const coverage: SourceCoverage = {
+          ...emptyCoverage(),
+          pagesScanned: index + 1,
+          messagesScanned: Math.min(eligibleRecords.length, maxMessages),
+          itemsScanned: Math.min(eligibleRecords.length, maxMessages),
+          itemsTruncated: records.filter((record) => record.rowTruncated === true).length + snapshotCapHits,
+          itemsMissed: snapshotCapHits,
+          missedCountUnknown: limitReached || snapshotCapHits > 0,
+          limitReached: limitReached || snapshotCapHits > 0,
+          partial: limitReached || snapshotCapHits > 0 || !resumeFound,
+          scope: "Inbox rows and message details",
+        };
         this.options.onProgress?.({
           phase: "ready",
           url: this.options.baseUrl,
-          title: "Inbox page " + String(index + 1),
+          title: `Inbox scan ${index + 1}`,
+          coverage,
         });
-        if (index === maxScrolls) break;
+        if (overMessageCap) {
+          const limited = eligibleRecords.slice(0, maxMessages);
+          const cursor = limited.at(-1);
+          this.options.onProgress?.({
+            phase: "ready",
+            url: this.options.baseUrl,
+            title: `Message limit reached at ${limited.length}`,
+            coverage: { ...coverage, messagesScanned: limited.length, itemsScanned: limited.length, limitReached: true, partial: true },
+            cursor: cursor === undefined ? resumeCursor ?? null : cursor.id || cursor.href || null,
+          });
+          return limited;
+        }
+        if (snapshots.size === beforeCount) unchangedPasses += 1;
+        else unchangedPasses = 0;
+        if (index === maxScrolls) {
+          const movedAtSafetyLimit = (await page.evaluate(scrollScript)) as boolean;
+          limitReached = movedAtSafetyLimit;
+          break;
+        }
+        if (unchangedPasses >= 2) break;
         const moved = (await page.evaluate(scrollScript)) as boolean;
         if (!moved) break;
         await page.waitForTimeout(this.settleDelayMs);
       }
-      return uniqueSnapshots(snapshots);
+      const allRecords = uniqueSnapshots(Array.from(snapshots.values()));
+      const resumeIndex = resumeCursor === undefined
+        ? -1
+        : allRecords.findIndex((record) => (record.id || record.href || `${record.text}|${record.dateText}`) === resumeCursor);
+      if (resumeIndex >= 0) resumeFound = true;
+      const startIndex = resumeCursor !== undefined && resumeIndex >= 0 ? resumeIndex + 1 : 0;
+      const records = allRecords.slice(startIndex, startIndex + maxMessages);
+      const hasUnreturnedRecords = allRecords.length > startIndex + records.length;
+      if (hasUnreturnedRecords || !resumeFound) limitReached = true;
+      const cursor = records.at(-1);
+      const finalCoverage: SourceCoverage = {
+        ...emptyCoverage(),
+        pagesScanned,
+        messagesScanned: records.length,
+        itemsScanned: records.length,
+        itemsTruncated: records.filter((record) => record.rowTruncated === true).length + snapshotCapHits,
+        itemsMissed: snapshotCapHits,
+        missedCountUnknown: limitReached || snapshotCapHits > 0,
+        limitReached: limitReached || snapshotCapHits > 0,
+        partial: limitReached || snapshotCapHits > 0 || !resumeFound,
+        scope: "Inbox rows and message details",
+      };
+      this.options.onProgress?.({
+        phase: "ready",
+        url: this.options.baseUrl,
+        title: resumeCursor === undefined ? `Scanned ${records.length} inbox messages` : resumeFound ? "Resumed inbox scan" : "Resume marker not found within scan limit",
+        coverage: finalCoverage,
+        cursor: finalCoverage.limitReached ? cursor?.id || cursor?.href || resumeCursor || null : null,
+      });
+      return records;
     } catch (error: unknown) {
       if (isBrowserFailure(error) || this.isBroken()) {
         this.failure ??= error instanceof BrowserSessionError
@@ -239,6 +373,38 @@ export class OutlookBrowserSession {
           : new BrowserSessionError("Outlook's browser session became unavailable.", error);
       }
       this.options.onProgress?.({ phase: "failed", url: this.options.baseUrl });
+      throw error;
+    }
+  }
+
+  public async readMessage(url: string): Promise<OutlookMessageSnapshot> {
+    const target = new URL(url, this.options.baseUrl);
+    if (!isAllowedOutlookHost(target.toString())) throw new Error("Outlook refused to open a message outside its official host.");
+    const page = await this.open();
+    this.lastNavigationAt = await waitBeforeNavigation(page, this.lastNavigationAt, this.navigationDelayMs);
+    this.options.onProgress?.({ phase: "navigating", url: target.toString() });
+    try {
+      await page.goto(target.toString(), { waitUntil: "domcontentloaded", timeout: this.timeoutMs });
+      await waitForPageReady(page, this.timeoutMs, this.settleDelayMs);
+      await this.waitForAuthentication(page);
+      const body = await messageBodyPage(page);
+      const truncated = body.text.length > 20_000;
+      return {
+        id: target.pathname.split("/").filter(Boolean).at(-1) ?? "",
+        text: body.text.slice(0, 4_000),
+        ariaLabel: "",
+        href: target.toString(),
+        dateText: "",
+        unread: false,
+        bodyText: body.text.slice(0, 20_000),
+        contentTruncated: truncated,
+        attachments: body.attachments,
+      };
+    } catch (error: unknown) {
+      if (isBrowserFailure(error) || this.isBroken()) {
+        this.failure ??= error instanceof BrowserSessionError ? error : new BrowserSessionError("Outlook's browser session became unavailable.", error);
+      }
+      this.options.onProgress?.({ phase: "failed", url: target.toString() });
       throw error;
     }
   }
@@ -336,8 +502,8 @@ const parseLines = (record: OutlookMessageSnapshot): string[] => {
     .filter((line) => line.length > 0 && !noiseLine(line) && !decorativeLine(line));
 };
 
-const itemId = (record: OutlookMessageSnapshot, sender: string, title: string, receivedAt: Date): string => {
-  const stableKey = record.id || record.href || `${sender}|${title}|${receivedAt.toISOString()}`;
+const itemId = (record: OutlookMessageSnapshot, sender: string, title: string, receivedAt?: Date): string => {
+  const stableKey = record.id || record.href || `${sender}|${title}|${(receivedAt?.toISOString() ?? dateCandidate(record)) || "unknown"}`;
   return `outlook:${createHash("sha256").update(stableKey).digest("hex").slice(0, 24)}`;
 };
 
@@ -352,25 +518,33 @@ export const extractOutlookEmailItems = (
 
   for (const record of records) {
     const receivedAt = parseReceivedAt(record, now);
-    if (receivedAt === undefined || receivedAt.getTime() < cutoff || receivedAt.getTime() > latestAllowed) continue;
+    if (receivedAt !== undefined && (receivedAt.getTime() < cutoff || receivedAt.getTime() > latestAllowed)) continue;
 
     const lines = parseLines(record);
     const sender = lines[0] ?? "Outlook";
     const title = (lines[1] ?? lines[0] ?? "Outlook email").slice(0, 240);
     const preview = lines.slice(2).join(" ").slice(0, 4_000);
+    const fullBody = record.bodyText?.trim() ?? "";
+    const fullContent = fullBody.length > 0 ? fullBody : preview.length > 0 ? preview : `${sender}: ${title}`;
+    const contentTruncated = fullContent.length > 8_000 || record.contentTruncated === true || record.rowTruncated === true;
+    const rawDate = record.dateText || dateCandidate(record);
     const id = itemId(record, sender, title, receivedAt);
     const item: AgentItem = {
       id,
       source: "email",
       title,
-      content: preview.length > 0 ? preview : `${sender}: ${title}`,
+      content: fullContent.slice(0, 8_000),
       ...(record.href.length > 0 ? { url: record.href } : {}),
-      createdAt: receivedAt,
+      ...(receivedAt === undefined ? {} : { createdAt: receivedAt }),
       metadata: {
         provider: "outlook",
         sender,
         unread: record.unread,
-        receivedAt: receivedAt.toISOString(),
+        ...(receivedAt === undefined
+          ? { dateStatus: "unknown", ...(rawDate.length === 0 ? {} : { rawDate }) }
+          : { receivedAt: receivedAt.toISOString(), dateStatus: "parsed" }),
+        ...(record.attachments === undefined || record.attachments.length === 0 ? {} : { attachments: record.attachments }),
+        ...(contentTruncated ? { contentTruncated: true } : {}),
         ...(record.id.length > 0 ? { conversationId: record.id } : {}),
       },
     };
@@ -385,11 +559,99 @@ export const extractOutlookEmailItems = (
 export const collectOutlookEmailItemsFromBrowser = async (
   options: OutlookBrowserOptions,
   now = new Date(),
+  resumeCursor?: string,
 ): Promise<AgentItem[]> => {
-  const session = new OutlookBrowserSession(options);
+  let listCoverage = emptyCoverage();
+  let savedCursor: string | null = null;
+  const onProgress = (progress: BrowserNavigationProgress): void => {
+    if (progress.coverage !== undefined) listCoverage = progress.coverage;
+    if (progress.cursor !== undefined) savedCursor = progress.cursor;
+    options.onProgress?.(progress);
+  };
+  const session = new OutlookBrowserSession({ ...options, onProgress });
   try {
-    const records = await session.gotoInbox();
-    return extractOutlookEmailItems(records, now, options.lookbackHours ?? defaultLookbackHours);
+    let rows: OutlookMessageSnapshot[];
+    try {
+      rows = await session.gotoInbox(resumeCursor);
+    } catch (error: unknown) {
+      onProgress({
+        phase: "failed",
+        url: options.baseUrl,
+        title: "Outlook inbox page failed",
+        coverage: { ...emptyCoverage(), pagesFailed: 1, missedCountUnknown: true, partial: true },
+      });
+      throw error;
+    }
+    const maxMessages = options.maxMessages ?? defaultMaxMessages;
+    const selectedRows = rows.slice(0, maxMessages);
+    let pagesFailed = 0;
+    let messagesMissed = 0;
+    let detailPages = 0;
+    const records: OutlookMessageSnapshot[] = [];
+    for (const row of selectedRows) {
+      if (row.href.length === 0) {
+        records.push(row);
+        messagesMissed += 1;
+        continue;
+      }
+      try {
+        const detail = await session.readMessage(row.href);
+        detailPages += 1;
+        records.push({
+          ...row,
+          ...(detail.bodyText === undefined ? {} : { bodyText: detail.bodyText }),
+          ...(detail.contentTruncated === undefined ? {} : { contentTruncated: detail.contentTruncated }),
+          ...(detail.attachments === undefined ? {} : { attachments: detail.attachments }),
+        });
+      } catch (error: unknown) {
+        pagesFailed += 1;
+        messagesMissed += 1;
+        records.push(row);
+        if (session.isBroken()) {
+          onProgress({
+            phase: "failed",
+            url: row.href,
+            title: "Outlook message page failed",
+            coverage: {
+              ...listCoverage,
+              pagesScanned: listCoverage.pagesScanned + detailPages,
+              messagesScanned: selectedRows.length,
+              itemsScanned: selectedRows.length,
+              itemsMissed: listCoverage.itemsMissed + messagesMissed,
+              pagesFailed,
+              missedCountUnknown: true,
+              partial: true,
+              scope: "Inbox messages in the configured lookback window",
+            },
+          });
+          throw error;
+        }
+      }
+    }
+    const items = extractOutlookEmailItems(records, now, options.lookbackHours ?? defaultLookbackHours);
+    const itemsTruncated = items.filter((item) => item.metadata.contentTruncated === true).length;
+    const coverage: SourceCoverage = {
+      ...listCoverage,
+      pagesScanned: listCoverage.pagesScanned + detailPages,
+      messagesScanned: selectedRows.length,
+      itemsScanned: selectedRows.length,
+      itemsExtracted: items.length,
+      itemsSkipped: Math.max(0, selectedRows.length - items.length - messagesMissed),
+      itemsTruncated: listCoverage.itemsTruncated + itemsTruncated,
+      itemsMissed: listCoverage.itemsMissed + messagesMissed,
+      pagesFailed,
+      partial: listCoverage.partial || pagesFailed > 0 || messagesMissed > 0 || listCoverage.itemsTruncated > 0 || itemsTruncated > 0,
+      scope: "Inbox messages in the configured lookback window",
+    };
+    const cursor = listCoverage.limitReached ? savedCursor : null;
+    onProgress({
+      phase: "ready",
+      url: options.baseUrl,
+      title: coverage.partial ? "Outlook coverage is partial" : "Full messages read",
+      coverage,
+      cursor,
+    });
+    return items;
   } finally {
     await session.close();
   }

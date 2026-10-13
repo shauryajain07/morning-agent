@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"],
+    "exactOptionalPropertyTypes": false,
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["components/**/*.ts", "components/**/*.tsx", "dashboard/arc-ui.tsx", "dashboard/vite.config.ts"],
+  "exclude": ["dashboard/dist", "node_modules"]
+}

@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import type { SourceCoverage } from "../types/index.js";
 
 export const defaultNavigationDelayMs = 350;
 export const defaultSettleDelayMs = 300;
@@ -7,6 +8,8 @@ export type BrowserNavigationProgress = {
   phase: "navigating" | "ready" | "failed";
   url: string;
   title?: string;
+  coverage?: SourceCoverage;
+  cursor?: string | null;
 };
 
 export class BrowserSessionError extends Error {

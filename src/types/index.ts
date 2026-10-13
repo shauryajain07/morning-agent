@@ -171,7 +171,36 @@ export type RunSourceKey =
   | "moodle"
   | "outlook";
 
-export type RunSourceStatus = "queued" | "starting" | "reading" | "completed" | "skipped" | "failed";
+export type RunSourceStatus = "queued" | "starting" | "reading" | "completed" | "partial" | "skipped" | "failed";
+
+export type SourceCoverage = {
+  pagesScanned: number;
+  messagesScanned: number;
+  itemsScanned: number;
+  itemsExtracted: number;
+  itemsSkipped: number;
+  itemsTruncated: number;
+  itemsMissed: number;
+  pagesFailed: number;
+  messagesFailed?: number;
+  attachmentsScanned?: number;
+  attachmentsTextExtracted?: number;
+  attachmentsFailed?: number;
+  pagesPending?: number;
+  messagesPendingEstimate?: number;
+  missedCountUnknown?: boolean;
+  limitReached: boolean;
+  partial: boolean;
+  scope?: string;
+};
+
+export type RunSourceProgressRecord = {
+  label: string;
+  status: RunSourceStatus;
+  detail?: string;
+  updatedAt: Date;
+  coverage?: SourceCoverage;
+};
 
 export type MorningRunRecord = {
   runId: string;
@@ -184,6 +213,7 @@ export type MorningRunRecord = {
   decisionCount?: number;
   actionCount?: number;
   error?: string;
+  sourceProgress?: Partial<Record<RunSourceKey, RunSourceProgressRecord>>;
 };
 
 export type MorningRunEvent =
@@ -196,6 +226,7 @@ export type MorningRunEvent =
       label: string;
       status: RunSourceStatus;
       detail?: string;
+      coverage?: SourceCoverage;
     }
   | {
       type: "stage";
@@ -222,6 +253,7 @@ export interface MoodleProvider {
   getAnnouncements(): Promise<AgentItem[]>;
   getAssignments(): Promise<AgentItem[]>;
   getCourseFiles(): Promise<AgentItem[]>;
+  getUnclassifiedItems(): Promise<AgentItem[]>;
 }
 
 export type RunOptions = {
@@ -229,5 +261,6 @@ export type RunOptions = {
   mock: boolean;
   verbose: boolean;
   persist?: boolean;
+  sourceOrder?: RunSourceKey[];
   onEvent?: (event: MorningRunEvent) => void;
 };

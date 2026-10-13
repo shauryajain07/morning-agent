@@ -14,7 +14,7 @@ import {
   waitBeforeNavigation,
   waitForPageReady,
 } from "./browserReliability.js";
-import type { AgentItem } from "../types/index.js";
+import type { AgentItem, SourceCoverage } from "../types/index.js";
 import { cleanText } from "./text.js";
 
 export type EdStemLinkSnapshot = {
@@ -33,6 +33,7 @@ export type EdStemPageSnapshot = {
   bodyText: string;
   dateText: string;
   links: EdStemLinkSnapshot[];
+  bodyTruncated?: boolean;
 };
 
 export type EdStemBrowserOptions = {
@@ -49,6 +50,7 @@ export type EdStemBrowserOptions = {
   lookbackHours?: number;
   maxCoursePages?: number;
   maxLessonPages?: number;
+  resumeCursor?: string;
   onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
@@ -235,11 +237,13 @@ const snapshotScript = String.raw`(() => {
   const dateText = Array.from(main.querySelectorAll("time, [datetime]"))
     .map((node) => clean(node.getAttribute("datetime") || node.innerText || node.getAttribute("title")))
     .find(Boolean) || "";
+  const rawBodyText = visibleText(main);
   return {
     url: window.location.href,
     title: clean(document.title),
     headingText,
-    bodyText: visibleText(main).slice(0, 60000),
+    bodyText: rawBodyText.slice(0, 60000),
+    bodyTruncated: rawBodyText.length > 60000,
     dateText,
     links,
   };
@@ -621,6 +625,8 @@ export const extractEdStemLessonItems = (
         lessonId: route.lessonId,
         contentHash: fingerprint,
         resourceCount: resources.length,
+        ...(updatedAt === undefined ? { updatedAtStatus: "unknown", ...(snapshot.dateText.length === 0 ? {} : { rawDate: snapshot.dateText }) } : { updatedAtStatus: "parsed" }),
+        ...(snapshot.bodyTruncated || bodyText.length >= 12_000 ? { contentTruncated: true } : {}),
         ...(resources.length === 0 ? {} : { resources }),
       },
     } satisfies AgentItem;
@@ -641,14 +647,54 @@ const uniqueUrls = (values: readonly string[], baseUrl: string): string[] => {
   return Array.from(output);
 };
 
+type EdStemResumeCursor = { version: 1; courseUrls: string[]; lessonUrls: string[] };
+
+const parseEdStemCursor = (value: string | undefined): EdStemResumeCursor => {
+  if (value === undefined) return { version: 1, courseUrls: [], lessonUrls: [] };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null || !("version" in parsed) || parsed.version !== 1) {
+      return { version: 1, courseUrls: [], lessonUrls: [] };
+    }
+    const cursor = parsed as { courseUrls?: unknown; lessonUrls?: unknown };
+    return {
+      version: 1,
+      courseUrls: Array.isArray(cursor.courseUrls) ? cursor.courseUrls.filter((url): url is string => typeof url === "string") : [],
+      lessonUrls: Array.isArray(cursor.lessonUrls) ? cursor.lessonUrls.filter((url): url is string => typeof url === "string") : [],
+    };
+  } catch {
+    return { version: 1, courseUrls: [], lessonUrls: [] };
+  }
+};
+
+const emptyEdStemCoverage = (): SourceCoverage => ({
+  pagesScanned: 0,
+  messagesScanned: 0,
+  itemsScanned: 0,
+  itemsExtracted: 0,
+  itemsSkipped: 0,
+  itemsTruncated: 0,
+  itemsMissed: 0,
+  pagesFailed: 0,
+  limitReached: false,
+  partial: false,
+  scope: "Lessons only. Ed discussion and other EdStem areas are outside the current collection scope",
+});
+
 export const collectEdStemLessonItemsFromBrowser = async (
   options: EdStemBrowserOptions,
   now = new Date(),
 ): Promise<AgentItem[]> => {
-  const session = new EdStemBrowserSession(options);
+  let coverage = emptyEdStemCoverage();
+  const emitProgress = (progress: BrowserNavigationProgress): void =>
+    options.onProgress?.({ ...progress, coverage });
+  const session = new EdStemBrowserSession({ ...options, onProgress: emitProgress });
   const snapshots: EdStemPageSnapshot[] = [];
   const courseLabels = new Map<string, string>();
   const visited = new Set<string>();
+  const failedCourseUrls: string[] = [];
+  const failedLessonUrls: string[] = [];
+  const resume = parseEdStemCursor(options.resumeCursor);
   const maxCoursePages = options.maxCoursePages ?? defaultMaxCoursePages;
   const maxLessonPages = options.maxLessonPages ?? defaultMaxLessonPages;
 
@@ -656,59 +702,128 @@ export const collectEdStemLessonItemsFromBrowser = async (
     const canonical = canonicalUrl(url, options.baseUrl);
     if (canonical === undefined || visited.has(canonical)) return undefined;
     visited.add(canonical);
-    const snapshot = await session.goto(canonical);
-    snapshots.push(snapshot);
-    rememberCourseLabels(snapshot, courseLabels);
-    return snapshot;
+    try {
+      const snapshot = await session.goto(canonical);
+      snapshots.push(snapshot);
+      rememberCourseLabels(snapshot, courseLabels);
+      coverage = { ...coverage, pagesScanned: coverage.pagesScanned + 1 };
+      return snapshot;
+    } catch (error: unknown) {
+      coverage = { ...coverage, pagesFailed: coverage.pagesFailed + 1, itemsMissed: coverage.itemsMissed + 1 };
+      emitProgress({ phase: "failed", url: canonical, title: "EdStem page failed", coverage: { ...coverage, missedCountUnknown: true, partial: true } });
+      if (error instanceof EdStemAuthenticationRequiredError || session.isBroken()) {
+        throw error;
+      }
+      throw error;
+    }
   };
-  const visitSafely = async (url: string): Promise<EdStemPageSnapshot | undefined> => {
+  const visitSafely = async (url: string, failedQueue: string[]): Promise<EdStemPageSnapshot | undefined> => {
     try {
       return await visit(url);
     } catch (error: unknown) {
       if (error instanceof EdStemAuthenticationRequiredError || session.isBroken()) throw error;
-      // A failed home page means the source never became readable. Surface it
-      // to the source boundary instead of silently reporting an empty source.
       if (snapshots.length === 0) throw error;
+      const canonical = canonicalUrl(url, options.baseUrl);
+      if (canonical !== undefined) failedQueue.push(canonical);
       return undefined;
     }
   };
 
   try {
-    const entryUrls = uniqueUrls([options.baseUrl, ...(options.courseUrls ?? [])], options.baseUrl);
-    for (const entryUrl of entryUrls.slice(0, maxCoursePages)) await visitSafely(entryUrl);
-
-    const courseUrls = uniqueUrls(
-      [
-        ...(options.courseUrls ?? []),
-        ...snapshots.flatMap((snapshot) => discoverEdStemCourseLinks(snapshot, options.baseUrl, options.courses ?? [])),
-      ],
+    const home = await visitSafely(options.baseUrl, failedCourseUrls);
+    let courseBudget = maxCoursePages;
+    if (home !== undefined) courseBudget -= 1;
+    const courseQueue = uniqueUrls([...(options.courseUrls ?? []), ...resume.courseUrls], options.baseUrl)
+      .filter((url) => !visited.has(url));
+    const discoveredCourseQueue = (): string[] => uniqueUrls(
+      snapshots.flatMap((snapshot) => discoverEdStemCourseLinks(snapshot, options.baseUrl, options.courses ?? [])),
       options.baseUrl,
-    );
-    for (const courseUrl of courseUrls.slice(0, maxCoursePages)) {
-      await visitSafely(courseUrl);
+    ).filter((url) => !visited.has(url));
+
+    const visitCourseQueue = async (queue: string[]): Promise<string[]> => {
+      const selected = queue.slice(0, Math.max(0, courseBudget));
+      const remaining = queue.slice(selected.length);
+      for (const url of selected) {
+        await visitSafely(url, failedCourseUrls);
+        courseBudget -= 1;
+      }
+      return remaining;
+    };
+
+    let remainingCourseUrls = await visitCourseQueue(courseQueue);
+    if (courseBudget > 0) {
+      const discovered = discoveredCourseQueue();
+      remainingCourseUrls = [...remainingCourseUrls, ...await visitCourseQueue(discovered)];
+    } else {
+      remainingCourseUrls = [...remainingCourseUrls, ...discoveredCourseQueue()];
     }
 
-    const indexUrls = uniqueUrls(
+    const indexQueue = uniqueUrls(
       snapshots.flatMap((snapshot) => discoverEdStemLessonIndexLinks(snapshot, options.baseUrl)),
       options.baseUrl,
-    );
-    for (const indexUrl of indexUrls.slice(0, maxCoursePages)) await visitSafely(indexUrl);
+    ).filter((url) => !visited.has(url));
+    if (courseBudget > 0) {
+      const selectedIndexes = indexQueue.slice(0, courseBudget);
+      remainingCourseUrls.push(...indexQueue.slice(selectedIndexes.length));
+      for (const url of selectedIndexes) {
+        await visitSafely(url, failedCourseUrls);
+        courseBudget -= 1;
+      }
+    } else {
+      remainingCourseUrls.push(...indexQueue);
+    }
 
-    const lessonUrls = uniqueUrls(
-      snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
-      options.baseUrl,
-    );
-    for (const lessonUrl of lessonUrls.slice(0, maxLessonPages)) await visitSafely(lessonUrl);
+    const lessonQueue = uniqueUrls([
+      ...resume.lessonUrls,
+      ...snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
+    ], options.baseUrl).filter((url) => !visited.has(url));
+    let remainingLessonUrls: string[] = [];
+    let lessonPages = 0;
+    while (lessonQueue.length > 0) {
+      const lessonUrl = lessonQueue.shift();
+      if (lessonUrl === undefined || visited.has(lessonUrl)) continue;
+      if (lessonPages >= maxLessonPages) {
+        remainingLessonUrls.push(lessonUrl, ...lessonQueue);
+        break;
+      }
+      await visitSafely(lessonUrl, failedLessonUrls);
+      if (visited.has(lessonUrl)) lessonPages += 1;
+      const late = uniqueUrls(
+        snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
+        options.baseUrl,
+      );
+      for (const url of late) if (!visited.has(url) && !lessonQueue.includes(url)) lessonQueue.push(url);
+    }
 
-    // A course or lesson page can lazy-load another lesson list after navigation.
-    // Take one final bounded discovery pass without clicking or submitting anything.
-    const lateLessonUrls = uniqueUrls(
-      snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)),
-      options.baseUrl,
-    );
-    for (const lessonUrl of lateLessonUrls.slice(0, maxLessonPages)) await visitSafely(lessonUrl);
-
-    return extractEdStemLessonItems(snapshots, now, options.lookbackHours ?? defaultLookbackHours, courseLabels);
+    const items = extractEdStemLessonItems(snapshots, now, options.lookbackHours ?? defaultLookbackHours, courseLabels);
+    const candidateLessonUrls = new Set(snapshots.flatMap((snapshot) => discoverEdStemLessonLinks(snapshot, options.baseUrl)));
+    for (const url of resume.lessonUrls) candidateLessonUrls.add(url);
+    const itemsTruncated = items.filter((item) => item.metadata.contentTruncated === true).length;
+    const limitReached = remainingCourseUrls.length > 0 || remainingLessonUrls.length > 0;
+    coverage = {
+      ...coverage,
+      itemsScanned: candidateLessonUrls.size,
+      itemsExtracted: items.length,
+      itemsSkipped: Math.max(0, candidateLessonUrls.size - items.length),
+      itemsTruncated,
+      pagesPending: remainingCourseUrls.length + remainingLessonUrls.length + failedCourseUrls.length + failedLessonUrls.length,
+      missedCountUnknown: limitReached || coverage.pagesFailed > 0,
+      limitReached,
+      partial: limitReached || coverage.pagesFailed > 0 || itemsTruncated > 0,
+    };
+    const cursor: EdStemResumeCursor = {
+      version: 1,
+      courseUrls: [...new Set([...remainingCourseUrls, ...failedCourseUrls])],
+      lessonUrls: [...new Set([...remainingLessonUrls, ...failedLessonUrls])],
+    };
+    emitProgress({
+      phase: "ready",
+      url: options.baseUrl,
+      title: coverage.partial ? "EdStem coverage is partial" : `Read ${items.length} lesson pages`,
+      coverage,
+      cursor: cursor.courseUrls.length + cursor.lessonUrls.length > 0 ? JSON.stringify(cursor) : null,
+    });
+    return items;
   } finally {
     await session.close();
   }

@@ -104,6 +104,7 @@ export class HKUMoodleProvider implements MoodleProvider {
     announcements: AgentItem[];
     assignments: AgentItem[];
     courseFiles: AgentItem[];
+    uncertain: AgentItem[];
   }> | undefined;
 
   public constructor(private readonly options: HKUMoodleProviderOptions = moodleOptionsFromEnvironment()) {}
@@ -112,9 +113,10 @@ export class HKUMoodleProvider implements MoodleProvider {
     announcements: AgentItem[];
     assignments: AgentItem[];
     courseFiles: AgentItem[];
+    uncertain: AgentItem[];
   }> {
     if (!this.options.enabled || this.options.baseUrl === undefined) {
-      return { announcements: [], assignments: [], courseFiles: [] };
+      return { announcements: [], assignments: [], courseFiles: [], uncertain: [] };
     }
 
     return collectMoodleItemsFromBrowser({
@@ -127,6 +129,7 @@ export class HKUMoodleProvider implements MoodleProvider {
     announcements: AgentItem[];
     assignments: AgentItem[];
     courseFiles: AgentItem[];
+    uncertain: AgentItem[];
   }> {
     this.collectionPromise ??= this.collect();
     return this.collectionPromise;
@@ -142,6 +145,10 @@ export class HKUMoodleProvider implements MoodleProvider {
 
   public async getCourseFiles(): Promise<AgentItem[]> {
     return (await this.getCollection()).courseFiles;
+  }
+
+  public async getUnclassifiedItems(): Promise<AgentItem[]> {
+    return (await this.getCollection()).uncertain;
   }
 }
 
@@ -185,5 +192,9 @@ export class MockMoodleProvider implements MoodleProvider {
         },
       },
     ]);
+  }
+
+  async getUnclassifiedItems(): Promise<AgentItem[]> {
+    return [];
   }
 }

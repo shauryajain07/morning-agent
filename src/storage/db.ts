@@ -31,6 +31,10 @@ import type {
   RequiresActionDecision,
   ReviewRecord,
   ReviewStatus,
+  RunSourceKey,
+  RunSourceProgressRecord,
+  RunSourceStatus,
+  SourceCoverage,
   StoredAgentItem,
   Urgency,
 } from "../types/index.js";
@@ -123,6 +127,7 @@ type RunRow = {
   decision_count: number | null;
   action_count: number | null;
   error: string | null;
+  source_progress_json: string;
 };
 
 const urgencies = ["today", "soon", "later", "none"] as const;
@@ -149,6 +154,8 @@ const actionStatuses = [
 const reviewStatuses = ["approved", "dismissed"] as const;
 const runStatuses = ["running", "completed", "failed"] as const;
 const runStages = ["collect", "normalize", "jev", "policy", "actions", "briefing"] as const;
+const runSourceKeys = ["downloads", "calendar", "gmail", "github", "news", "edstem", "moodle", "outlook"] as const;
+const runSourceStatuses = ["queued", "starting", "reading", "completed", "partial", "skipped", "failed"] as const;
 
 function isOneOf<Value extends string>(
   values: readonly Value[],
@@ -243,6 +250,48 @@ function isRunStatus(value: unknown): value is MorningRunStatus {
 
 function isRunStage(value: unknown): value is MorningRunStage {
   return isOneOf(runStages, value);
+}
+
+function isRunSourceKey(value: unknown): value is RunSourceKey {
+  return isOneOf(runSourceKeys, value);
+}
+
+function isRunSourceStatus(value: unknown): value is RunSourceStatus {
+  return isOneOf(runSourceStatuses, value);
+}
+
+function validateCoverage(value: unknown): asserts value is SourceCoverage {
+  if (!isRecord(value)) throw new TypeError("run source coverage must be an object");
+  for (const field of ["pagesScanned", "messagesScanned", "itemsScanned", "itemsExtracted", "itemsSkipped", "itemsTruncated", "itemsMissed", "pagesFailed"] as const) {
+    if (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0) {
+      throw new TypeError(`run source coverage ${field} must be a non-negative integer`);
+    }
+  }
+  for (const field of ["messagesFailed", "attachmentsScanned", "attachmentsTextExtracted", "attachmentsFailed", "pagesPending", "messagesPendingEstimate"] as const) {
+    if (value[field] !== undefined && (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0)) {
+      throw new TypeError(`run source coverage ${field} must be a non-negative integer`);
+    }
+  }
+  if (value.missedCountUnknown !== undefined && typeof value.missedCountUnknown !== "boolean") {
+    throw new TypeError("run source coverage missedCountUnknown must be boolean");
+  }
+  if (typeof value.limitReached !== "boolean" || typeof value.partial !== "boolean") {
+    throw new TypeError("run source coverage flags must be boolean");
+  }
+  if (value.scope !== undefined) assertNonEmptyText(value.scope, "run source coverage scope");
+}
+
+function validateSourceProgress(value: unknown): asserts value is Partial<Record<RunSourceKey, RunSourceProgressRecord>> {
+  if (!isRecord(value)) throw new TypeError("run.sourceProgress must be an object");
+  for (const [source, entry] of Object.entries(value)) {
+    if (!isRunSourceKey(source) || !isRecord(entry) || !isRunSourceStatus(entry.status)) {
+      throw new TypeError("run.sourceProgress has an invalid source entry");
+    }
+    assertNonEmptyText(entry.label, "run source progress label");
+    assertValidDate(entry.updatedAt, "run source progress updatedAt");
+    if (entry.detail !== undefined) assertNonEmptyText(entry.detail, "run source progress detail");
+    if (entry.coverage !== undefined) validateCoverage(entry.coverage);
+  }
 }
 
 function validateDecisionOutput(
@@ -481,6 +530,7 @@ function validateRun(record: MorningRunRecord): void {
     }
   }
   if (record.error !== undefined) assertNonEmptyText(record.error, "run.error");
+  if (record.sourceProgress !== undefined) validateSourceProgress(record.sourceProgress);
 }
 
 function parseSeenItemFingerprint(row: SeenItemFingerprintRow): SeenItemFingerprintRecord {
@@ -590,6 +640,30 @@ function parseRun(row: RunRow): MorningRunRecord {
   const itemCount = parseCount(row.item_count, "itemCount");
   const decisionCount = parseCount(row.decision_count, "decisionCount");
   const actionCount = parseCount(row.action_count, "actionCount");
+  const parsedProgress = parseJson(row.source_progress_json, "run source progress");
+  if (!isRecord(parsedProgress)) throw new Error("Stored run source progress must be an object");
+  const sourceProgress: Partial<Record<RunSourceKey, RunSourceProgressRecord>> = {};
+  for (const [source, rawEntry] of Object.entries(parsedProgress)) {
+    if (!isRunSourceKey(source) || !isRecord(rawEntry) || !isRunSourceStatus(rawEntry.status)) {
+      throw new Error("Stored run source progress has an invalid entry");
+    }
+    if (typeof rawEntry.label !== "string" || rawEntry.label.trim().length === 0) {
+      throw new Error("Stored run source progress label is invalid");
+    }
+    const updatedAt = typeof rawEntry.updatedAt === "string" ? new Date(rawEntry.updatedAt) : new Date(Number.NaN);
+    if (!Number.isFinite(updatedAt.getTime())) throw new Error("Stored run source progress timestamp is invalid");
+    const entry: RunSourceProgressRecord = {
+      label: rawEntry.label,
+      status: rawEntry.status,
+      updatedAt,
+      ...(typeof rawEntry.detail === "string" ? { detail: rawEntry.detail } : {}),
+    };
+    if (rawEntry.coverage !== undefined) {
+      validateCoverage(rawEntry.coverage);
+      entry.coverage = rawEntry.coverage;
+    }
+    sourceProgress[source] = entry;
+  }
   return {
     runId: row.run_id,
     status: row.status,
@@ -601,6 +675,7 @@ function parseRun(row: RunRow): MorningRunRecord {
     ...(decisionCount === undefined ? {} : { decisionCount }),
     ...(actionCount === undefined ? {} : { actionCount }),
     ...(row.error === null ? {} : { error: row.error }),
+    ...(Object.keys(sourceProgress).length === 0 ? {} : { sourceProgress }),
   };
 }
 
@@ -649,6 +724,7 @@ export class MorningAgentStore {
           decisionCount: number | null;
           actionCount: number | null;
           error: string | null;
+          sourceProgress: string;
         },
         unknown
       >(
@@ -663,7 +739,8 @@ export class MorningAgentStore {
             item_count,
             decision_count,
             action_count,
-            error
+            error,
+            source_progress_json
           )
           VALUES (
             @runId,
@@ -675,7 +752,8 @@ export class MorningAgentStore {
             @itemCount,
             @decisionCount,
             @actionCount,
-            @error
+            @error,
+            @sourceProgress
           )
           ON CONFLICT(run_id) DO UPDATE SET
             status = excluded.status,
@@ -686,7 +764,8 @@ export class MorningAgentStore {
             item_count = excluded.item_count,
             decision_count = excluded.decision_count,
             action_count = excluded.action_count,
-            error = excluded.error
+            error = excluded.error,
+            source_progress_json = excluded.source_progress_json
         `,
       )
       .run({
@@ -700,6 +779,7 @@ export class MorningAgentStore {
         decisionCount: record.decisionCount ?? null,
         actionCount: record.actionCount ?? null,
         error: record.error ?? null,
+        sourceProgress: serializeJson(record.sourceProgress ?? {}, "run source progress"),
       });
   }
 
@@ -718,7 +798,8 @@ export class MorningAgentStore {
             item_count,
             decision_count,
             action_count,
-            error
+            error,
+            source_progress_json
           FROM run_records
           WHERE run_id = @runId
         `,
@@ -741,7 +822,8 @@ export class MorningAgentStore {
             item_count,
             decision_count,
             action_count,
-            error
+            error,
+            source_progress_json
           FROM run_records
           ORDER BY started_at DESC, run_id DESC
           LIMIT 1
@@ -749,6 +831,32 @@ export class MorningAgentStore {
       )
       .get();
     return row === undefined ? undefined : parseRun(row);
+  }
+
+  public getCollectorCursor(source: RunSourceKey): string | undefined {
+    if (!isRunSourceKey(source)) throw new TypeError("collector cursor source is not supported");
+    const row = this.database
+      .prepare<{ source: RunSourceKey }, { cursor: string }>(
+        "SELECT cursor FROM collector_cursors WHERE source = @source",
+      )
+      .get({ source });
+    return row?.cursor;
+  }
+
+  public setCollectorCursor(source: RunSourceKey, cursor: string | null, updatedAt = new Date()): void {
+    if (!isRunSourceKey(source)) throw new TypeError("collector cursor source is not supported");
+    assertValidDate(updatedAt, "collector cursor updatedAt");
+    if (cursor === null || cursor.length === 0) {
+      this.database.prepare("DELETE FROM collector_cursors WHERE source = @source").run({ source });
+      return;
+    }
+    this.database
+      .prepare<{ source: RunSourceKey; cursor: string; updatedAt: string }, unknown>(
+        `INSERT INTO collector_cursors (source, cursor, updated_at)
+         VALUES (@source, @cursor, @updatedAt)
+         ON CONFLICT(source) DO UPDATE SET cursor = excluded.cursor, updated_at = excluded.updated_at`,
+      )
+      .run({ source, cursor, updatedAt: serializeDate(updatedAt) });
   }
 
   public recordSeenItemFingerprint(

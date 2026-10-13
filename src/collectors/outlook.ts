@@ -62,8 +62,10 @@ export const outlookOptionsFromEnvironment = (): OutlookProviderOptions => {
   if (loginTimeoutMs !== undefined) options.loginTimeoutMs = loginTimeoutMs;
   const lookbackHours = boundedIntegerEnvironmentValue("OUTLOOK_LOOKBACK_HOURS", 1, 168);
   if (lookbackHours !== undefined) options.lookbackHours = lookbackHours;
-  const maxScrolls = boundedIntegerEnvironmentValue("OUTLOOK_MAX_SCROLLS", 0, 50);
+  const maxScrolls = boundedIntegerEnvironmentValue("OUTLOOK_MAX_SCROLLS", 0, 500);
   if (maxScrolls !== undefined) options.maxScrolls = maxScrolls;
+  const maxMessages = boundedIntegerEnvironmentValue("OUTLOOK_MAX_MESSAGES", 1, 5_000);
+  if (maxMessages !== undefined) options.maxMessages = maxMessages;
   const navigationDelayMs = boundedIntegerEnvironmentValue("OUTLOOK_NAVIGATION_DELAY_MS", 0, 5_000);
   if (navigationDelayMs !== undefined) options.navigationDelayMs = navigationDelayMs;
   const settleDelayMs = boundedIntegerEnvironmentValue("OUTLOOK_SETTLE_DELAY_MS", 0, 5_000);
@@ -74,12 +76,15 @@ export const outlookOptionsFromEnvironment = (): OutlookProviderOptions => {
 
 export const collectOutlookEmailItems = async (
   onProgress?: (progress: BrowserNavigationProgress) => void,
+  resumeCursor?: string,
+  forceEnabled = false,
 ): Promise<AgentItem[]> => {
   const options = outlookOptionsFromEnvironment();
-  if (!options.enabled || options.baseUrl === undefined) return [];
+  if ((!options.enabled && !forceEnabled) || options.baseUrl === undefined) return [];
+  if (forceEnabled) options.enabled = true;
   if (onProgress !== undefined) options.onProgress = onProgress;
   return collectOutlookEmailItemsFromBrowser({
     ...options,
     baseUrl: options.baseUrl,
-  });
+  }, new Date(), resumeCursor);
 };

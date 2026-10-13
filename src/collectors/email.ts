@@ -1,6 +1,7 @@
 import type { AgentItem } from "../types/index.js";
 import { parseAgentItems } from "../types/schema.js";
 import { collectGmailEmailItems } from "./gmail.js";
+import type { BrowserNavigationProgress } from "./browserReliability.js";
 
 export type EmailCollector = {
   collect(): Promise<AgentItem[]>;
@@ -54,4 +55,8 @@ export const getMockEmailItems = (): AgentItem[] =>
     },
   ]);
 
-export const collectEmailItems = async (): Promise<AgentItem[]> => collectGmailEmailItems();
+export const collectEmailItems = async (
+  onProgress?: (progress: BrowserNavigationProgress) => void,
+  resumeCursor?: string,
+  forceEnabled = false,
+): Promise<AgentItem[]> => collectGmailEmailItems(onProgress, resumeCursor, forceEnabled);

@@ -1,39 +1,58 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light" data-accent="blue">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#18191b" />
-    <meta name="description" content="Morning Agent local overview" />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="A private, local overview of your morning." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
-    <title>Morning Agent — Local dashboard</title>
+    <title>Morning Agent</title>
+    <script>
+      (() => {
+        const appearance = window.matchMedia("(prefers-color-scheme: dark)");
+        const applyAppearance = () => {
+          document.documentElement.dataset.theme = appearance.matches ? "dark" : "light";
+        };
+        applyAppearance();
+        appearance.addEventListener?.("change", applyAppearance);
+      })();
+    </script>
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Morning Agent navigation">
         <div class="brand-lockup">
-          <div class="brand-mark" aria-hidden="true"></div>
-          <div>
+          <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M6 22.5h20M9 19.5a7 7 0 0 1 14 0M16 5v3M5.8 11l2.1 1.2M26.2 11l-2.1 1.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            <path d="M12.5 22.5a3.5 3.5 0 0 1 7 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+          </svg>
+          <div class="brand-copy">
             <div class="brand-name">Morning Agent</div>
-            <div class="brand-sub">Local only</div>
+            <div class="brand-sub">Private workspace</div>
           </div>
         </div>
 
         <div class="sidebar-label">Workspace</div>
-        <nav class="main-nav">
-          <button class="nav-item is-active" data-view="control" type="button">
-            <span class="nav-icon" aria-hidden="true"></span><span>Today</span><span class="nav-hot">⌘1</span>
+        <nav class="main-nav" aria-label="Workspace">
+          <button class="nav-item is-active" data-view="control" type="button" aria-current="page" aria-controls="control-view">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3.5 13.5a6.5 6.5 0 0 1 13 0M10 2.5v2M3.6 5.4l1.4 1.1M16.4 5.4 15 6.5M3 16.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+            <span>Today</span>
           </button>
-          <button class="nav-item" data-view="everything" type="button">
-            <span class="nav-icon" aria-hidden="true"></span><span>All activity</span><span class="nav-hot">⌘2</span>
+          <button class="nav-item" data-view="everything" type="button" aria-controls="everything-view">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6.5 5.5h10M6.5 10h10M6.5 14.5h10M3.5 5.5h.01M3.5 10h.01M3.5 14.5h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+            <span>All activity</span>
+          </button>
+          <button class="nav-item" data-view="settings" type="button" aria-controls="settings-view">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 12.7a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z" stroke="currentColor" stroke-width="1.5" /><path d="m16.1 11.2 1.1.8-1.3 2.2-1.3-.5a6.4 6.4 0 0 1-1.4.8l-.2 1.4h-2.6l-.2-1.4a6.4 6.4 0 0 1-1.4-.8l-1.3.5-1.3-2.2 1.1-.8a6.5 6.5 0 0 1 0-1.6l-1.1-.8 1.3-2.2 1.3.5a6.4 6.4 0 0 1 1.4-.8l.2-1.4h2.6l.2 1.4a6.4 6.4 0 0 1 1.4.8l1.3-.5 1.3 2.2-1.1.8a6.5 6.5 0 0 1 0 1.6Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" /></svg>
+            <span>Settings</span>
           </button>
         </nav>
 
         <div class="sidebar-label sidebar-label-spaced">Sources</div>
-        <div class="source-stack">
-          <button class="source-line" data-filter="email" type="button" aria-label="Filter to inbox messages"><span class="source-glyph email" aria-hidden="true"></span><span>Gmail + Outlook</span><b id="side-email-count">0</b></button>
-          <button class="source-line" data-filter="moodle" type="button" aria-label="Filter to Moodle coursework"><span class="source-glyph moodle" aria-hidden="true"></span><span>Moodle · all courses</span><b id="side-moodle-count">0</b></button>
+        <div class="source-stack" aria-label="Filter by source">
+          <button class="source-line" data-filter="email" type="button" aria-label="Filter to inbox messages"><span class="source-glyph email" aria-hidden="true"></span><span>Gmail and Outlook</span><b id="side-email-count">0</b></button>
+          <button class="source-line" data-filter="moodle" type="button" aria-label="Filter to Moodle coursework"><span class="source-glyph moodle" aria-hidden="true"></span><span>Moodle</span><b id="side-moodle-count">0</b></button>
           <button class="source-line" data-filter="work" type="button" aria-label="Filter to work items"><span class="source-glyph work" aria-hidden="true"></span><span>Work</span><b id="side-work-count">0</b></button>
           <button class="source-line" data-filter="news" type="button" aria-label="Filter to daily news"><span class="source-glyph news" aria-hidden="true"></span><span>Daily news</span><b id="side-news-count">0</b></button>
           <button class="source-line" data-filter="edstem" type="button" aria-label="Filter to Ed Lessons"><span class="source-glyph edstem" aria-hidden="true"></span><span>Ed Lessons</span><b id="side-edstem-count">0</b></button>
@@ -42,68 +61,82 @@
 
         <div class="sidebar-spacer"></div>
         <div class="privacy-card">
-          <div class="privacy-orb"><span></span></div>
-          <div><strong>Private on this Mac</strong><p>No cloud sync.</p></div>
+          <span class="privacy-mark" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M10 2.8 15.7 5v4.2c0 3.5-2.3 6.3-5.7 8-3.4-1.7-5.7-4.5-5.7-8V5L10 2.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /><path d="m7.7 9.8 1.5 1.5 3.1-3.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </span>
+          <div><strong>Private on this Mac</strong><p>Your data stays local.</p></div>
         </div>
         <div class="sidebar-footer"><span class="live-dot"></span><span id="service-label">Local service</span></div>
       </aside>
 
       <main class="workspace" id="workspace-main" aria-busy="true">
         <header class="topbar">
-          <div class="crumbs"><span class="crumb-muted">Morning Agent</span><span class="crumb-slash">/</span><span id="crumb-view">Today</span></div>
+          <div class="crumbs"><span class="crumb-muted">Workspace</span><span class="crumb-separator" aria-hidden="true">/</span><span id="crumb-view">Today</span></div>
           <div class="topbar-actions">
             <div class="connection-state" role="status" aria-live="polite"><span class="live-dot"></span><span id="connection-label">Loading</span></div>
-            <button class="run-button" id="run-button" type="button" aria-describedby="pulse-label"><span class="run-icon">↻</span><span>Run now</span></button>
+            <div id="run-button-host"></div>
           </div>
         </header>
 
         <div class="data-banner" id="data-banner" hidden role="alert">
           <span class="data-banner-mark" aria-hidden="true">!</span>
-          <div><strong id="data-banner-title">Local state unavailable</strong><p id="data-banner-message">The dashboard could not read its local data.</p></div>
-          <button id="data-retry" type="button">Try again</button>
+          <div class="data-banner-copy"><strong id="data-banner-title">Local state unavailable</strong><p id="data-banner-message">The dashboard could not read its local data.</p></div>
+          <button id="data-retry" type="button">Refresh local data</button>
         </div>
 
         <section class="page-view" id="control-view" aria-labelledby="control-title">
           <div class="page-heading">
-            <div>
-              <div class="eyebrow">Local snapshot <span class="eyebrow-rule"></span><span id="pulse-label">Loading</span></div>
-              <h1 id="control-title">Today</h1>
+            <div class="page-heading-copy">
+              <div class="heading-title-row">
+                <h1 id="control-title">Today</h1>
+                <span class="snapshot-state"><span class="live-dot"></span><span id="pulse-label">Loading</span></span>
+              </div>
               <p class="lede" id="status-caption">Reading your local state…</p>
             </div>
-            <div class="date-block"><span id="current-day">—</span><strong id="current-time">—</strong></div>
+            <div class="date-block" aria-label="Current date and time"><span id="current-day">Loading</span><strong id="current-time">Loading</strong></div>
           </div>
 
-          <div class="metric-grid" aria-label="Morning Agent metrics">
-            <button class="metric-card metric-link accent-cyan" data-view="everything" data-filter-target="all" type="button" aria-label="Open all activity"><div class="metric-head"><span>Items</span><span class="metric-spark">↗</span></div><strong id="metric-total">—</strong><p>saved here</p></button>
-            <button class="metric-card metric-link accent-lime" data-view="everything" data-filter-target="email" type="button" aria-label="Open inbox"><div class="metric-head"><span>Inbox</span><span class="metric-spark">↗</span></div><strong id="metric-email">—</strong><p><span id="metric-unread">—</span> unread</p></button>
-            <button class="metric-card metric-link accent-violet" data-view="everything" data-filter-target="courses" type="button" aria-label="Open coursework"><div class="metric-head"><span>Coursework</span><span class="metric-spark">↗</span></div><strong id="metric-moodle">—</strong><p><span id="metric-course-count">Loading courses</span> across Moodle + Ed</p></button>
-            <button class="metric-card metric-link accent-coral" data-view="everything" data-filter-target="review" type="button" aria-label="Open review queue"><div class="metric-head"><span>Review</span><span class="metric-spark">↗</span></div><strong id="metric-review">—</strong><p>waiting for your call</p></button>
-          </div>
+          <div class="metric-grid" id="metric-grid" aria-label="Morning Agent metrics" aria-busy="true"></div>
 
           <div class="today-layout">
             <div class="today-main-column">
-              <article class="panel activity-panel">
-                <div class="panel-header"><div><span class="panel-kicker" id="activity-kicker">Recent activity</span><h2 id="activity-title">Latest changes</h2></div><span class="tiny-live" id="activity-status">saved locally</span></div>
+              <article class="panel activity-panel" aria-labelledby="activity-title">
+                <div class="panel-header">
+                  <div class="section-heading"><h2 id="activity-title">Latest changes</h2><span class="section-context" id="activity-kicker">Recent activity</span></div>
+                  <span class="tiny-live" id="activity-status">Saved locally</span>
+                </div>
                 <div class="activity-list" id="activity-list" aria-live="polite"><div class="loading-state" role="status">Reading local activity…</div></div>
               </article>
-              <article class="panel pipeline-panel">
-                <div class="panel-header"><div><span class="panel-kicker" id="pipeline-kicker">Run status</span><h2 id="pipeline-title">Collection</h2></div><span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span></div>
+
+              <article class="panel pipeline-panel" aria-labelledby="pipeline-title">
+                <div class="panel-header">
+                  <div class="section-heading"><h2 id="pipeline-title">Collection</h2><span class="section-context" id="pipeline-kicker">Run status</span></div>
+                  <span class="panel-status" id="pipeline-status" role="status" aria-live="polite">Loading</span>
+                </div>
                 <div class="pipeline" id="pipeline" aria-label="Collection stages"></div>
-                <div class="pipeline-foot"><span class="pulse-line"></span><span id="pipeline-footnote">Reading local state…</span></div>
+                <div class="pipeline-foot"><span class="pulse-line" aria-hidden="true"></span><span id="pipeline-footnote">Reading local state…</span></div>
                 <div class="source-progress-panel" id="source-progress-panel" aria-live="polite">
-                  <div class="source-progress-head"><span>Source path</span><span id="source-progress-status">Waiting</span></div>
+                  <div class="source-progress-head"><span>Source progress</span><span id="source-progress-status">Waiting</span></div>
                   <div class="source-progress-list" id="source-progress-list"></div>
                   <p class="next-action" id="next-action">Run a check to see the source order.</p>
                 </div>
               </article>
             </div>
+
             <div class="today-side-column">
-              <article class="panel next-panel">
-                <div class="panel-header"><div><span class="panel-kicker">Next up</span><h2>Deadlines</h2></div><button class="text-button" data-deadline-view type="button">View all ↗</button></div>
+              <article class="panel next-panel" aria-labelledby="deadlines-title">
+                <div class="panel-header">
+                  <div class="section-heading"><h2 id="deadlines-title">Deadlines</h2><span class="section-context">Coming up</span></div>
+                  <button class="text-button" data-deadline-view type="button">View deadlines</button>
+                </div>
                 <div class="deadline-list" id="deadline-list"><div class="loading-state" role="status">Reading upcoming dates…</div></div>
               </article>
-              <article class="panel review-panel">
-                <div class="panel-header"><div><span class="panel-kicker warm">Needs your call</span><h2>Review</h2></div><span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue" tabindex="-1">—</span></div>
+
+              <article class="panel review-panel" aria-labelledby="review-title">
+                <div class="panel-header">
+                  <div class="section-heading"><h2 id="review-title">Review</h2><span class="section-context">Decisions that need your input</span></div>
+                  <span class="queue-count" id="queue-count" role="status" aria-live="polite" aria-label="Loading review queue" tabindex="-1">Loading</span>
+                </div>
                 <div class="review-list" id="review-list"><div class="loading-state" role="status">Reading review queue…</div></div>
               </article>
             </div>
@@ -112,13 +145,13 @@
 
         <section class="page-view is-hidden" id="everything-view" aria-labelledby="everything-title">
           <div class="page-heading page-heading-tight">
-            <div>
-              <div class="eyebrow">Local activity <span class="eyebrow-rule"></span><span id="everything-count">Loading</span></div>
+            <div class="page-heading-copy">
               <h1 id="everything-title">All activity</h1>
               <p class="lede">Email, coursework, work, news, and files saved here.</p>
+              <p class="heading-context" id="everything-count">Loading</p>
             </div>
             <div class="view-toggle-wrap" id="filter-scroll-wrap">
-              <div class="view-toggle" id="filter-scroll" role="group" aria-label="Everything filters">
+              <div class="view-toggle" id="filter-scroll" role="group" aria-label="Filter activity">
                 <button class="filter-button is-active" data-filter="all" type="button" aria-pressed="true">All</button>
                 <button class="filter-button" data-filter="deadlines" type="button" aria-pressed="false">Deadlines</button>
                 <button class="filter-button" data-filter="review" type="button" aria-pressed="false">Review</button>
@@ -134,16 +167,44 @@
           </div>
 
           <div class="overview-grid">
-            <article class="panel source-panel"><div class="panel-header"><div><span class="panel-kicker">Sources</span><h2>What's here</h2></div><span class="panel-scope" id="source-scope">all items</span></div><div class="source-visual"><div class="source-total" id="source-total"><strong id="donut-total">—</strong><span>items</span></div><div class="source-bars" id="source-bars"></div></div></article>
-            <article class="panel focus-panel"><div class="panel-header"><div><span class="panel-kicker warm">Needs a look</span><h2>Signals</h2></div><span class="focus-score"><strong id="focus-score">—</strong> signals</span></div><div class="focus-breakdown" id="focus-breakdown"><div class="loading-state">Reading attention signals…</div></div></article>
+            <article class="panel source-panel" aria-labelledby="source-title">
+              <div class="panel-header">
+                <div class="section-heading"><h2 id="source-title">Saved by source</h2><span class="section-context">Items in your local archive</span></div>
+                <span class="panel-scope" id="source-scope">All items</span>
+              </div>
+              <div class="source-visual"><div class="source-total" id="source-total"><strong id="donut-total">Loading</strong><span>items</span></div><div class="source-bars" id="source-bars"></div></div>
+            </article>
+            <article class="panel focus-panel" aria-labelledby="focus-title">
+              <div class="panel-header">
+                <div class="section-heading"><h2 id="focus-title">Needs attention</h2><span class="section-context">Signals across this view</span></div>
+                <span class="focus-score"><strong id="focus-score">Loading</strong><span>signals</span></span>
+              </div>
+              <div class="focus-breakdown" id="focus-breakdown"><div class="loading-state" role="status">Reading attention signals…</div></div>
+            </article>
           </div>
 
-          <article class="panel stream-panel" id="stream-panel">
-              <div class="panel-header stream-header"><div class="stream-heading"><span class="panel-kicker">Activity</span><h2 id="stream-title">All items</h2><span class="stream-result-count" id="stream-result-count" aria-live="polite">Loading</span></div><div class="stream-controls"><label class="course-filter"><span>Course</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label><label class="search-box"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Search messages, files, work…" aria-label="Search all items" autocomplete="off" /><button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button></label></div></div>
-            <div class="stream-table-head"><span>Item</span><span>Source</span><span>When</span><span>Status</span></div>
-            <div class="stream-table" id="stream-table"><div class="loading-state" role="status">Reading local activity…</div></div>
-            <div class="stream-footer" id="stream-footer"><span id="stream-pagination">Loading</span><button class="load-more" id="stream-more" type="button" hidden>Load more</button></div>
+          <article class="panel stream-panel" id="stream-panel" aria-labelledby="stream-title">
+            <div class="panel-header stream-header">
+              <div class="stream-heading">
+                <div class="section-heading"><h2 id="stream-title">All items</h2><span class="stream-result-count" id="stream-result-count" aria-live="polite">Loading</span></div>
+                <p class="section-context">Search or filter your saved activity.</p>
+              </div>
+              <div class="stream-controls">
+                <label class="course-filter"><span>Course</span><select id="course-filter" aria-label="Filter by course"><option value="">All courses</option></select></label>
+                <label class="search-box">
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.4" stroke="currentColor" stroke-width="1.5" /><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  <input id="search-input" type="search" placeholder="Search activity" aria-label="Search all items" autocomplete="off" />
+                  <button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>×</button>
+                </label>
+              </div>
+            </div>
+            <div class="stream-table" id="stream-table" aria-busy="true"></div>
+            <div class="stream-footer" id="stream-footer"><span id="stream-pagination">Loading</span><button class="load-more" id="stream-more" type="button" hidden>Load more items</button></div>
           </article>
+        </section>
+
+        <section class="page-view is-hidden" id="settings-view" aria-labelledby="settings-title" aria-label="Settings">
+          <div id="settings-ui-host" aria-busy="true"></div>
         </section>
       </main>
     </div>
@@ -152,6 +213,6 @@
       <div class="dialog-inner" id="detail-content"></div>
     </dialog>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="/app.js?rev=20260920-62"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

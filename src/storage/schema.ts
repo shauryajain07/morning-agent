@@ -84,14 +84,25 @@ CREATE TABLE IF NOT EXISTS run_records (
   item_count INTEGER,
   decision_count INTEGER,
   action_count INTEGER,
-  error TEXT
+  error TEXT,
+  source_progress_json TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS run_records_started_idx
   ON run_records (started_at DESC, run_id DESC);
+
+CREATE TABLE IF NOT EXISTS collector_cursors (
+  source TEXT PRIMARY KEY NOT NULL,
+  cursor TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 export function initializeSchema(database: Database.Database): void {
   database.pragma("foreign_keys = ON");
   database.exec(SCHEMA_SQL);
+  const runColumns = database.pragma("table_info(run_records)") as Array<{ name: string }>;
+  if (!runColumns.some((column) => column.name === "source_progress_json")) {
+    database.exec("ALTER TABLE run_records ADD COLUMN source_progress_json TEXT NOT NULL DEFAULT '{}' ");
+  }
 }

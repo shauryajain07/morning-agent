@@ -300,9 +300,10 @@ export const getMockGitHubItems = (): AgentItem[] =>
     },
   ]);
 
-export const collectGitHubItems = async (): Promise<AgentItem[]> => {
+export const collectGitHubItems = async (forceEnabled = false): Promise<AgentItem[]> => {
   const options = githubOptionsFromEnvironment();
-  if (!options.enabled) return [];
+  if (!options.enabled && !forceEnabled) return [];
+  if (forceEnabled) options.enabled = true;
   if (options.repositories.length === 0 && options.token === undefined && options.username === undefined) return [];
 
   const now = new Date();

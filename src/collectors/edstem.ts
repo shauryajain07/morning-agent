@@ -74,9 +74,13 @@ export const edStemOptionsFromEnvironment = (): EdStemCollectorOptions => {
 
 export const collectEdStemItems = async (
   onProgress?: (progress: BrowserNavigationProgress) => void,
+  resumeCursor?: string,
+  forceEnabled = false,
 ): Promise<AgentItem[]> => {
   const options = edStemOptionsFromEnvironment();
-  if (!options.enabled) return [];
+  if (!options.enabled && !forceEnabled) return [];
+  if (forceEnabled) options.enabled = true;
   if (onProgress !== undefined) options.onProgress = onProgress;
+  if (resumeCursor !== undefined) options.resumeCursor = resumeCursor;
   return collectEdStemLessonItemsFromBrowser(options, new Date());
 };

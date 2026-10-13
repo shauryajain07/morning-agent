@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import { courseCodes } from "../config/courses.js";
-import type { AgentItem } from "../types/index.js";
+import type { AgentItem, SourceCoverage } from "../types/index.js";
 import {
   BrowserSessionError,
   closeWithTimeout,
@@ -22,6 +22,8 @@ export type MoodleLinkSnapshot = {
   context: string;
   title: string;
   ariaLabel: string;
+  download?: string;
+  mimeType?: string;
 };
 
 export type MoodlePageSnapshot = {
@@ -29,12 +31,14 @@ export type MoodlePageSnapshot = {
   title: string;
   bodyText: string;
   links: MoodleLinkSnapshot[];
+  bodyTruncated?: boolean;
 };
 
 export type MoodleCollection = {
   announcements: AgentItem[];
   assignments: AgentItem[];
   courseFiles: AgentItem[];
+  uncertain: AgentItem[];
 };
 
 export type MoodleBrowserOptions = {
@@ -48,6 +52,7 @@ export type MoodleBrowserOptions = {
   settleDelayMs?: number;
   maxCoursePages?: number;
   maxDetailPages?: number;
+  resumeCursor?: string;
   onProgress?: (progress: BrowserNavigationProgress) => void;
 };
 
@@ -73,7 +78,7 @@ const moodleResourcePathPattern = /\/mod\/(?:resource|folder)\/view(?:\.php)?\/?
 const moodleAssignmentPathPattern = /\/mod\/(?:assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
 // Assignment/quiz pages are already represented by their course-listing links.
 // Only resource/folder pages need a bounded detail crawl to find nested files.
-const moodleDetailPathPattern = moodleResourcePathPattern;
+const moodleDetailPathPattern = /\/mod\/(?:resource|folder|assign|quiz|workshop|turnitintooltwo)\/view(?:\.php)?\/?$/u;
 
 const cleanText = (value: string): string => value.replace(/\s+/gu, " ").trim();
 
@@ -160,15 +165,19 @@ const snapshotScript = String.raw`(() => {
       context: contextFor(anchor),
       title: clean(anchor.getAttribute("title")),
       ariaLabel: clean(anchor.getAttribute("aria-label")),
+      download: clean(anchor.getAttribute("download")),
+      mimeType: clean(anchor.getAttribute("type")),
     };
     const label = clean([link.text, link.ariaLabel, link.title].filter(Boolean).join(" "));
     const isAccessibilitySkipLink = /^skip(?:\s+to)?(?:\s|$)/iu.test(label) && anchor.hash.length > 0;
     if (link.href.length > 0 && !isAccessibilitySkipLink) links.push(link);
   }
+  const rawBodyText = clean(document.body && document.body.innerText);
   return {
     url: window.location.href,
     title: clean(document.title),
-    bodyText: clean(document.body && document.body.innerText).slice(0, 50000),
+    bodyText: rawBodyText.slice(0, 50000),
+    bodyTruncated: rawBodyText.length > 50000,
     links,
   };
 })()`;
@@ -538,6 +547,32 @@ export const parseMoodleDate = (
   return buildHkuDate(date, parseClock(text) ?? { hour: defaultHour, minute: defaultMinute });
 };
 
+const deadlineCuePattern = /\b(?:submission(?:\s+(?:due|deadline|by))?|due(?:\s+date)?|deadline|submit\b[^.!?]{0,60}?\b(?:by|before)|clos(?:e|es|ed|ing)(?:\s+date)?)\b\s*(?::|[-–—])?\s*/giu;
+const weekdayPrefixPattern = /(?:(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s*,?\s*)?/iu;
+const deadlineDatePattern = new RegExp(
+  `^${weekdayPrefixPattern.source}(?:20\\d{2}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?[\\s/-]+(?:[A-Za-z]{3,9}|\\d{1,2})(?:[\\s,/-]+20\\d{2})?|[A-Za-z]{3,9}\\s+\\d{1,2}(?:st|nd|rd|th)?(?:[\\s,/-]+20\\d{2})?|today|tomorrow|yesterday)\\b`,
+  "iu",
+);
+const deadlineTimePattern = /^\s*(?:,\s*)?(?:at\s+)?(?:(?:0?[1-9]|1[0-2])(?::[0-5]\d)?\s*[ap]\.?m\.?|(?:[01]?\d|2[0-3]):[0-5]\d)\b/iu;
+
+/** Parse a due date only when a date immediately follows a deadline cue. */
+const parseMoodleDeadline = (value: string, now: Date): Date | undefined => {
+  const text = cleanText(value);
+  for (const cue of text.matchAll(deadlineCuePattern)) {
+    const cueEnd = (cue.index ?? 0) + cue[0].length;
+    const afterCue = text.slice(cueEnd).replace(/^\s*(?:is|on|by|at)\s+/iu, "");
+    const dateMatch = afterCue.match(deadlineDatePattern);
+    if (dateMatch === null) continue;
+
+    const remainder = afterCue.slice(dateMatch[0].length);
+    const timeMatch = remainder.match(deadlineTimePattern);
+    const dateText = `${dateMatch[0]}${timeMatch?.[0] ?? ""}`;
+    const parsed = parseMoodleDate(dateText, now);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
+};
+
 const candidateText = (_snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): string =>
   stripMoodleNavigationChrome(`${link.text} ${link.ariaLabel} ${link.title} ${link.context}`);
 
@@ -638,7 +673,7 @@ const fileNameFor = (link: MoodleLinkSnapshot, title: string): string => {
 const createdAtCue = /posted|created|updated|published|uploaded|added|available/iu;
 
 const makeItem = (
-  kind: "announcement" | "assignment" | "course_file",
+  kind: "announcement" | "assignment" | "course_file" | "unknown",
   snapshot: MoodlePageSnapshot,
   link: MoodleLinkSnapshot,
   now: Date,
@@ -649,23 +684,37 @@ const makeItem = (
   const text = candidateText(snapshot, link);
   const course = courseCodeFromText(`${snapshot.url} ${snapshot.title} ${text}`);
   const courseId = moodleCourseId(snapshot.url) ?? moodleCourseId(href);
-  const fallback = kind === "announcement" ? "Moodle announcement" : kind === "assignment" ? "Moodle assignment" : "Moodle course file";
+  const fallback = kind === "announcement" ? "Moodle announcement" : kind === "assignment" ? "Moodle assignment" : kind === "course_file" ? "Moodle course file" : "Moodle item";
   const title = titleFor(link, fallback, course);
   const metadata: Record<string, unknown> = { kind, href };
+  if (kind === "unknown") metadata.rawType = "unknown";
   if (course !== undefined) metadata.course = course;
   if (course === undefined && courseId !== undefined) metadata.courseId = courseId;
 
   const context = stripMoodleNavigationChrome(link.context || text).slice(0, 4_000);
   const createdAt = createdAtCue.test(context) ? parseMoodleDate(context, now, 12, 0) : undefined;
-  const deadline = kind === "assignment" && /due|deadline|submit|submission|close/iu.test(context)
-    ? parseMoodleDate(context, now)
-    : undefined;
+  const deadline = kind === "assignment" ? parseMoodleDeadline(context, now) : undefined;
+  metadata.createdAtStatus = createdAt === undefined ? "unknown" : "parsed";
+  if (createdAt === undefined) {
+    const rawCreatedAt = context.match(/\b(?:posted|created|updated|published|uploaded|added|available)\b[^.]{0,180}/iu)?.[0];
+    if (rawCreatedAt !== undefined) metadata.rawCreatedAtText = rawCreatedAt;
+  }
+  if (kind === "assignment" || kind === "unknown") {
+    metadata.deadlineStatus = deadline === undefined ? "unknown" : "parsed";
+    const rawDeadline = context.match(/\b(?:due(?:\s+date)?|deadline|submission(?:\s+(?:due|deadline|by))?|submit(?:\s+(?:by|before))?)\b[^.]{0,180}/iu)?.[0];
+    if (rawDeadline !== undefined) metadata.rawDeadlineText = rawDeadline;
+  }
+  if (snapshot.bodyTruncated || link.context.length >= 1_200 || link.context.length >= 4_000) metadata.contentTruncated = true;
 
   if (kind === "course_file") {
     const moduleId = moodleModuleId(snapshot.url) ?? moodleModuleId(href);
     if (moduleId !== undefined) metadata.moduleId = moduleId;
     const filename = fileNameFor(link, title).slice(0, 240);
     metadata.filename = filename;
+    const downloadName = cleanText(link.download ?? "");
+    if (downloadName.length > 0) metadata.downloadName = downloadName.slice(0, 240);
+    const mimeType = cleanText(link.mimeType ?? "");
+    if (mimeType.length > 0) metadata.mimeType = mimeType.slice(0, 120);
     const extension = extensionFor(`${filename} ${href}`);
     if (extension !== undefined) metadata.extension = extension;
   }
@@ -690,6 +739,7 @@ export const extractMoodleItems = (
   const announcements = new Map<string, AgentItem>();
   const assignments = new Map<string, AgentItem>();
   const courseFiles = new Map<string, AgentItem>();
+  const uncertain = new Map<string, AgentItem>();
 
   for (const snapshot of snapshots) {
     for (const link of snapshot.links) {
@@ -700,12 +750,26 @@ export const extractMoodleItems = (
           ? assignments
           : isCourseFileCandidate(snapshot, link)
             ? courseFiles
-            : undefined;
+            : isUnknownCandidate(snapshot, link)
+              ? uncertain
+              : undefined;
       if (target === undefined) continue;
 
-      const kind = target === announcements ? "announcement" : target === assignments ? "assignment" : "course_file";
+      const kind = target === announcements ? "announcement" : target === assignments ? "assignment" : target === courseFiles ? "course_file" : "unknown";
       const item = makeItem(kind, snapshot, link, now);
       if (item !== undefined && !target.has(item.id)) target.set(item.id, item);
+    }
+
+    if (moodleAssignmentPathPattern.test(pathFor(snapshot.url))) {
+      const pageLink: MoodleLinkSnapshot = {
+        href: snapshot.url,
+        text: snapshot.title || "Moodle assignment",
+        context: snapshot.bodyText,
+        title: snapshot.title,
+        ariaLabel: "",
+      };
+      const item = makeItem("assignment", snapshot, pageLink, now);
+      if (item !== undefined) assignments.set(item.id, item);
     }
   }
 
@@ -731,59 +795,174 @@ export const extractMoodleItems = (
     announcements: Array.from(announcements.values()),
     assignments: Array.from(assignments.values()),
     courseFiles: Array.from(courseFiles.values()),
+    uncertain: Array.from(uncertain.values()),
   };
 };
+
+const isUnknownCandidate = (snapshot: MoodlePageSnapshot, link: MoodleLinkSnapshot): boolean => {
+  if (isAnnouncementCandidate(snapshot, link) || isAssignmentCandidate(snapshot, link) || isCourseFileCandidate(snapshot, link)) return false;
+  return /\b(?:deadline|due date|submit by|coursework|assessment|assignment|quiz|lecture|slides|worksheet|announcement|notice)\b/iu.test(candidateText(snapshot, link));
+};
+
+type MoodleResumeCursor = { version: 1; courseUrls: string[]; detailUrls: string[] };
+
+const parseMoodleCursor = (value: string | undefined): MoodleResumeCursor => {
+  if (value === undefined) return { version: 1, courseUrls: [], detailUrls: [] };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null || !("version" in parsed) || parsed.version !== 1) {
+      return { version: 1, courseUrls: [], detailUrls: [] };
+    }
+    const cursor = parsed as { courseUrls?: unknown; detailUrls?: unknown };
+    return {
+      version: 1,
+      courseUrls: Array.isArray(cursor.courseUrls) ? cursor.courseUrls.filter((url): url is string => typeof url === "string") : [],
+      detailUrls: Array.isArray(cursor.detailUrls) ? cursor.detailUrls.filter((url): url is string => typeof url === "string") : [],
+    };
+  } catch {
+    return { version: 1, courseUrls: [], detailUrls: [] };
+  }
+};
+
+const emptyMoodleCoverage = (): SourceCoverage => ({
+  pagesScanned: 0,
+  messagesScanned: 0,
+  itemsScanned: 0,
+  itemsExtracted: 0,
+  itemsSkipped: 0,
+  itemsTruncated: 0,
+  itemsMissed: 0,
+  pagesFailed: 0,
+  limitReached: false,
+  partial: false,
+  scope: "Announcements, assignments, and course files",
+});
 
 export const collectMoodleItemsFromBrowser = async (
   options: MoodleBrowserOptions,
   now = new Date(),
 ): Promise<MoodleCollection> => {
-  const session = new MoodleBrowserSession(options);
+  let coverage = emptyMoodleCoverage();
+  const emitProgress = (progress: BrowserNavigationProgress): void =>
+    options.onProgress?.({ ...progress, coverage });
+  const session = new MoodleBrowserSession({ ...options, onProgress: emitProgress });
+  const snapshots: MoodlePageSnapshot[] = [];
+  const visited = new Set<string>();
+  const failedCourseUrls: string[] = [];
+  const failedDetailUrls: string[] = [];
+  const resume = parseMoodleCursor(options.resumeCursor);
   try {
-    const dashboard = await session.goto(options.baseUrl);
-    const snapshots: MoodlePageSnapshot[] = [dashboard];
-    const courseLinks = discoverCourseLinks(dashboard, options.baseUrl).slice(
-      0,
-      options.maxCoursePages ?? defaultMaxCoursePages,
-    );
-    const visited = new Set<string>();
-    const detailLinks: string[] = [];
+    let dashboard: MoodlePageSnapshot;
+    try {
+      dashboard = await session.goto(options.baseUrl);
+    } catch (error: unknown) {
+      coverage = { ...coverage, pagesFailed: 1, missedCountUnknown: true, partial: true };
+      emitProgress({ phase: "failed", url: options.baseUrl, title: "Moodle dashboard page failed", coverage });
+      throw error;
+    }
+    snapshots.push(dashboard);
+    coverage = { ...coverage, pagesScanned: 1 };
+    const courseLimit = options.maxCoursePages ?? defaultMaxCoursePages;
+    const detailLimit = options.maxDetailPages ?? defaultMaxDetailPages;
+    const courseQueue = Array.from(new Set([
+      ...resume.courseUrls,
+      ...discoverCourseLinks(dashboard, options.baseUrl),
+    ]));
+    const queuedCourses = courseQueue.slice(0, courseLimit);
+    const remainingCourses = courseQueue.slice(courseLimit);
+    const detailQueue = new Set(resume.detailUrls);
 
-    for (const courseLink of courseLinks) {
+    for (const courseLink of queuedCourses) {
+      const canonicalCourseLink = toCanonicalMoodleUrl(courseLink) ?? courseLink;
+      if (visited.has(canonicalCourseLink)) continue;
+      visited.add(canonicalCourseLink);
       try {
-        const canonicalCourseLink = toCanonicalMoodleUrl(courseLink) ?? courseLink;
-        if (visited.has(canonicalCourseLink)) continue;
-        visited.add(canonicalCourseLink);
-        const courseSnapshot = await session.goto(courseLink);
+        const courseSnapshot = await session.goto(canonicalCourseLink);
         snapshots.push(courseSnapshot);
-        detailLinks.push(...discoverMoodleDetailLinks(courseSnapshot, options.baseUrl));
+        coverage = { ...coverage, pagesScanned: coverage.pagesScanned + 1 };
+        for (const detailLink of discoverMoodleDetailLinks(courseSnapshot, options.baseUrl)) detailQueue.add(detailLink);
       } catch (error: unknown) {
-        if (error instanceof MoodleAuthenticationRequiredError) throw error;
-        if (session.isBroken()) throw error;
-        // One unavailable course should not discard the rest of the read-only collection.
+        coverage = { ...coverage, pagesFailed: coverage.pagesFailed + 1, itemsMissed: coverage.itemsMissed + 1 };
+        failedCourseUrls.push(canonicalCourseLink);
+        if (error instanceof MoodleAuthenticationRequiredError || session.isBroken()) {
+          emitProgress({ phase: "failed", url: canonicalCourseLink, title: "Moodle course page failed", coverage: { ...coverage, missedCountUnknown: true, partial: true } });
+          throw error;
+        }
       }
     }
 
+    const details = Array.from(detailQueue);
     let detailCount = 0;
-    while (detailLinks.length > 0 && detailCount < (options.maxDetailPages ?? defaultMaxDetailPages)) {
-      const detailLink = detailLinks.shift();
+    const remainingDetails: string[] = [];
+    while (details.length > 0) {
+      const detailLink = details.shift();
       if (detailLink === undefined) continue;
       const canonicalDetailLink = toCanonicalMoodleUrl(detailLink) ?? detailLink;
       if (visited.has(canonicalDetailLink)) continue;
+      if (detailCount >= detailLimit) {
+        remainingDetails.push(canonicalDetailLink, ...details);
+        break;
+      }
       visited.add(canonicalDetailLink);
       try {
-        const detailSnapshot = await session.goto(detailLink);
+        const detailSnapshot = await session.goto(canonicalDetailLink);
         snapshots.push(detailSnapshot);
-        detailLinks.push(...discoverMoodleDetailLinks(detailSnapshot, options.baseUrl));
+        coverage = { ...coverage, pagesScanned: coverage.pagesScanned + 1 };
         detailCount += 1;
+        for (const nestedLink of discoverMoodleDetailLinks(detailSnapshot, options.baseUrl)) {
+          if (!visited.has(nestedLink)) details.push(nestedLink);
+        }
       } catch (error: unknown) {
-        if (error instanceof MoodleAuthenticationRequiredError) throw error;
-        if (session.isBroken()) throw error;
-        // A single unavailable activity should not discard other read-only results.
+        coverage = { ...coverage, pagesFailed: coverage.pagesFailed + 1, itemsMissed: coverage.itemsMissed + 1 };
+        failedDetailUrls.push(canonicalDetailLink);
+        if (error instanceof MoodleAuthenticationRequiredError || session.isBroken()) {
+          emitProgress({ phase: "failed", url: canonicalDetailLink, title: "Moodle activity page failed", coverage: { ...coverage, missedCountUnknown: true, partial: true } });
+          throw error;
+        }
       }
     }
 
-    return extractMoodleItems(snapshots, now);
+    const collection = extractMoodleItems(snapshots, now);
+    const items = [collection.announcements, collection.assignments, collection.courseFiles, collection.uncertain].flat();
+    const candidateLinks = new Set<string>();
+    for (const snapshot of snapshots) {
+      for (const link of snapshot.links) {
+        if (
+          isAnnouncementCandidate(snapshot, link) ||
+          isAssignmentCandidate(snapshot, link) ||
+          isCourseFileCandidate(snapshot, link) ||
+          isUnknownCandidate(snapshot, link)
+        ) candidateLinks.add(toCanonicalMoodleUrl(link.href) ?? link.href);
+      }
+      if (moodleAssignmentPathPattern.test(pathFor(snapshot.url))) candidateLinks.add(toCanonicalMoodleUrl(snapshot.url) ?? snapshot.url);
+    }
+    const itemsTruncated = items.filter((item) => item.metadata.contentTruncated === true).length;
+    const limitReached = remainingCourses.length > 0 || remainingDetails.length > 0;
+    coverage = {
+      ...coverage,
+      itemsScanned: candidateLinks.size,
+      itemsExtracted: items.length,
+      itemsSkipped: Math.max(0, candidateLinks.size - items.length),
+      itemsTruncated,
+      pagesPending: remainingCourses.length + remainingDetails.length + failedCourseUrls.length + failedDetailUrls.length,
+      missedCountUnknown: limitReached || coverage.pagesFailed > 0,
+      limitReached,
+      partial: limitReached || coverage.pagesFailed > 0 || itemsTruncated > 0,
+    };
+    const cursorUrls = {
+      version: 1,
+      courseUrls: [...remainingCourses, ...failedCourseUrls],
+      detailUrls: [...remainingDetails, ...failedDetailUrls],
+    } satisfies MoodleResumeCursor;
+    const cursor = cursorUrls.courseUrls.length + cursorUrls.detailUrls.length > 0 ? JSON.stringify(cursorUrls) : null;
+    emitProgress({
+      phase: "ready",
+      url: options.baseUrl,
+      title: coverage.partial ? "Moodle coverage is partial" : "Moodle pages read",
+      coverage,
+      cursor,
+    });
+    return collection;
   } finally {
     await session.close();
   }

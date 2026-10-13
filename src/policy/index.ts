@@ -24,7 +24,7 @@ export const forbiddenActionKinds = [
 export type ForbiddenActionKind = (typeof forbiddenActionKinds)[number];
 
 export const confidenceThresholds = {
-  suggested: 0.75,
+  suggested: 0.51,
   automatic: 0.95,
 } as const;
 
@@ -85,7 +85,7 @@ function displayConfidence(confidence: number): number {
 }
 
 export function getConfidenceBand(confidence: number): ConfidenceBand {
-  if (!isValidConfidence(confidence) || confidence < confidenceThresholds.suggested) {
+  if (!isValidConfidence(confidence) || confidence <= confidenceThresholds.suggested) {
     return "manual_review";
   }
 
@@ -157,7 +157,7 @@ export function evaluateActionPolicy(
       canAutoRun: false,
       requiresApproval: false,
       requiresManualReview: true,
-      reason: "Confidence is below the approval threshold.",
+      reason: "Confidence is at or below the approval threshold.",
     };
   }
 

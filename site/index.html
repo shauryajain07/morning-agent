@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f4f3ed">
-    <meta name="description" content="Morning Agent turns email, coursework, GitHub updates, files, and news into a calm, reviewable morning briefing that runs on your Mac.">
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="Morning Agent brings the email, coursework, GitHub updates, files, and news you choose into one local, reviewable morning briefing.">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Morning Agent — Start with a clear plan">
+    <meta property="og:title" content="Morning Agent — See what changed">
     <meta property="og:description" content="A local-first morning briefing for the work and study already on your plate.">
     <meta property="og:url" content="https://shauryajain07.github.io/morning-agent/">
     <meta name="twitter:card" content="summary">
     <link rel="canonical" href="https://shauryajain07.github.io/morning-agent/">
     <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+    <link rel="preload" href="assets/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="assets/site.css">
-    <title>Morning Agent — Start with a clear plan</title>
+    <title>Morning Agent — See what changed</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,14 +24,13 @@
     <header class="site-header">
       <div class="nav-wrap">
         <a class="brand" href="./" aria-label="Morning Agent home">
-          <img src="assets/mark.svg" width="38" height="38" alt="">
+          <img src="assets/mark.svg" width="32" height="32" alt="">
           <span>Morning Agent</span>
         </a>
         <nav class="main-nav" aria-label="Main navigation">
           <a href="#how-it-works">How it works</a>
           <a href="#privacy">Privacy</a>
-          <a href="#walkthrough">Walkthrough</a>
-          <a class="nav-download" href="getting-started.html">Get the app <span aria-hidden="true">↗</span></a>
+          <a class="nav-download" href="getting-started.html">Get the app</a>
         </nav>
       </div>
     </header>
@@ -36,196 +38,171 @@
     <main id="main">
       <section class="hero section-wrap">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> A local-first morning briefing</p>
-          <h1>Start the day with a <em>clear plan.</em></h1>
-          <p class="hero-description">Morning Agent gathers the things competing for your attention—email, coursework, GitHub, files, and news—and turns them into one focused review.</p>
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> A local-first morning briefing</p>
+          <h1>See what changed.<br><span>Start the day clear.</span></h1>
+          <p class="hero-description">Morning Agent brings the inbox, coursework, GitHub, files, and news you choose into one reviewable place on your Mac.</p>
           <div class="hero-actions">
-            <a class="button button-dark" href="getting-started.html">Get Morning Agent <span aria-hidden="true">↗</span></a>
-            <a class="text-link" href="#how-it-works">See how it works <span aria-hidden="true">↓</span></a>
+            <a class="button button-primary" href="getting-started.html">Get the source <span aria-hidden="true">↗</span></a>
+            <a class="button button-secondary" href="#how-it-works">See how it works</a>
           </div>
-          <div class="hero-facts" aria-label="App details">
-            <span><span aria-hidden="true">⌘</span> Runs on your Mac</span>
-            <span><span aria-hidden="true">◉</span> Free for personal use</span>
-            <span><span aria-hidden="true">⌁</span> Source download</span>
-          </div>
+          <p class="hero-meta">macOS-first <span aria-hidden="true">·</span> Node.js 20+ <span aria-hidden="true">·</span> Runs on your computer</p>
         </div>
 
-        <div class="hero-visual" aria-label="Illustrative example of a morning briefing">
-          <div class="visual-topline"><span>AN EXAMPLE MORNING</span><span class="visual-date">MON · 8:14 AM</span></div>
-          <div class="brief-card">
-            <div class="brief-heading">
-              <div>
-                <p class="mini-label">YOUR MORNING BRIEF</p>
-                <h2>Good morning.</h2>
-              </div>
-              <span class="brief-sun" aria-hidden="true">✳</span>
-            </div>
-            <div class="brief-summary"><span class="summary-number">03</span><span>items worth a closer look</span></div>
-            <article class="brief-item item-urgent">
-              <span class="item-marker" aria-hidden="true"></span>
-              <div><p class="item-source">EMAIL <span>·</span> TODAY</p><h3>Review the project proposal</h3><p class="item-detail">A teammate is waiting on your feedback.</p></div>
-              <span class="item-arrow" aria-hidden="true">↗</span>
-            </article>
-            <article class="brief-item">
-              <span class="item-marker marker-blue" aria-hidden="true"></span>
-              <div><p class="item-source">COURSEWORK <span>·</span> SOON</p><h3>Lab notes are available</h3><p class="item-detail">New material was added to your course.</p></div>
-              <span class="item-arrow" aria-hidden="true">↗</span>
-            </article>
-            <article class="brief-item">
-              <span class="item-marker marker-gold" aria-hidden="true"></span>
-              <div><p class="item-source">GITHUB <span>·</span> REVIEW</p><h3>Pull request needs a look</h3><p class="item-detail">A review was requested on your project.</p></div>
-              <span class="item-arrow" aria-hidden="true">↗</span>
-            </article>
-            <div class="brief-footer"><span>Collected locally</span><span class="local-indicator"><i aria-hidden="true"></i> READY FOR REVIEW</span></div>
+        <div class="product-preview" aria-label="Illustrative Morning Agent dashboard using sample data">
+          <div class="preview-titlebar">
+            <div class="preview-brand"><img src="assets/mark.svg" width="24" height="24" alt=""><span>Morning Agent</span></div>
+            <span class="preview-local"><i aria-hidden="true"></i> Local workspace</span>
           </div>
-          <p class="visual-caption">Illustrative preview · sample content</p>
+          <div class="preview-app">
+            <aside class="preview-sidebar" aria-label="Illustrative app navigation">
+              <p class="preview-label">Workspace</p>
+              <div class="preview-nav preview-nav-active"><span class="nav-symbol nav-today" aria-hidden="true"></span>Today</div>
+              <div class="preview-nav"><span class="nav-symbol nav-list" aria-hidden="true"></span>All activity</div>
+              <p class="preview-label preview-label-sources">Sources</p>
+              <div class="preview-source"><i class="source-dot source-blue" aria-hidden="true"></i> Gmail &amp; Outlook</div>
+              <div class="preview-source"><i class="source-dot source-violet" aria-hidden="true"></i> Coursework</div>
+              <div class="preview-source"><i class="source-dot source-green" aria-hidden="true"></i> GitHub</div>
+              <div class="preview-source"><i class="source-dot source-amber" aria-hidden="true"></i> Files &amp; news</div>
+              <div class="preview-private"><span aria-hidden="true">✓</span><div><strong>Private on this Mac</strong><small>History saved locally</small></div></div>
+            </aside>
+
+            <div class="preview-main">
+              <div class="preview-crumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>Today</strong></div>
+              <div class="preview-heading">
+                <div><p class="preview-date">A SAMPLE MORNING</p><h2>Today</h2><p>Here’s what may need your attention.</p></div>
+                <span class="preview-state"><i aria-hidden="true"></i> Saved locally</span>
+              </div>
+
+              <div class="preview-metrics" aria-label="Sample metrics">
+                <div class="preview-metric"><span>Items collected</span><strong>12</strong><small>Across your sources</small></div>
+                <div class="preview-metric"><span>Needs a review</span><strong>3</strong><small>Check before acting</small></div>
+                <div class="preview-metric"><span>Coming up</span><strong>2</strong><small>Deadlines and dates</small></div>
+              </div>
+
+              <div class="preview-content-grid">
+                <section class="preview-panel" aria-label="Sample latest changes">
+                  <div class="preview-panel-heading"><h3>Latest changes</h3><span>Recent activity</span></div>
+                  <article class="preview-item"><i class="item-dot source-blue" aria-hidden="true"></i><div><strong>Feedback requested</strong><span>Email <b>·</b> Today</span></div><span class="item-chevron" aria-hidden="true">›</span></article>
+                  <article class="preview-item"><i class="item-dot source-violet" aria-hidden="true"></i><div><strong>New course material</strong><span>Coursework <b>·</b> Today</span></div><span class="item-chevron" aria-hidden="true">›</span></article>
+                  <article class="preview-item"><i class="item-dot source-green" aria-hidden="true"></i><div><strong>Review requested</strong><span>GitHub <b>·</b> Yesterday</span></div><span class="item-chevron" aria-hidden="true">›</span></article>
+                </section>
+                <section class="preview-panel preview-review" aria-label="Sample items for review">
+                  <div class="preview-panel-heading"><h3>Review</h3><span>Needs your input</span></div>
+                  <div class="review-count"><strong>3</strong><span>items to check</span></div>
+                  <p>Review suggestions and open the original source when something needs a closer look.</p>
+                  <span class="preview-review-link">Open review queue <span aria-hidden="true">↗</span></span>
+                </section>
+              </div>
+            </div>
+          </div>
+          <p class="preview-caption">Illustrative interface. All preview content is sample data.</p>
         </div>
       </section>
 
-      <section class="signal-bar" aria-label="Product summary">
-        <div class="signal-inner">
-          <p><strong>One focused review</strong><span>Bring scattered updates into one place.</span></p>
-          <p><strong>Your history stays local</strong><span>It is stored on your computer; remote classification is optional.</span></p>
-          <p><strong>You stay in control</strong><span>Review suggestions before acting.</span></p>
+      <section class="trust-row" aria-label="Product principles">
+        <div class="section-wrap trust-inner">
+          <p><span class="trust-icon" aria-hidden="true">⌂</span><strong>Local history</strong><span>Your briefing is stored on your Mac.</span></p>
+          <p><span class="trust-icon" aria-hidden="true">◷</span><strong>Read first</strong><span>Connectors collect information for review.</span></p>
+          <p><span class="trust-icon" aria-hidden="true">✓</span><strong>You decide</strong><span>Actions remain under your control.</span></p>
         </div>
       </section>
 
       <section class="section-wrap section-block" id="how-it-works">
-        <div class="section-heading">
-          <p class="eyebrow">A calmer start, in three steps</p>
-          <h2>From scattered updates<br>to a short list.</h2>
-          <p>Keep your usual sources. Morning Agent helps you see what changed and what deserves your attention first.</p>
+        <div class="section-intro">
+          <div><p class="eyebrow">One useful morning view</p><h2>From scattered updates<br>to a clear next step.</h2></div>
+          <p>Keep the services you already use. Morning Agent collects the updates you select and helps you sort through them before the day gets busy.</p>
         </div>
-        <div class="steps-grid">
-          <article class="step-card">
-            <span class="step-number">01</span>
-            <div class="step-icon icon-inbox" aria-hidden="true"><span></span><span></span><span></span></div>
-            <h3>Gather what changed</h3>
-            <p>Choose the sources you want to check: Gmail, Outlook, GitHub, Moodle, Ed Lessons, local files, and RSS feeds.</p>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-glyph glyph-inbox" aria-hidden="true"><i></i><i></i><i></i></span>
+            <h3>Bring in what changed</h3>
+            <p>Choose the inboxes, course pages, project updates, files, and feeds you want to check.</p>
           </article>
-          <article class="step-card">
-            <span class="step-number">02</span>
-            <div class="step-icon icon-focus" aria-hidden="true"><span></span><span></span><span></span></div>
-            <h3>Sort the signal</h3>
-            <p>Typed decisions help label importance, urgency, deadlines, and useful reading. The briefing itself is assembled by deterministic code.</p>
+          <article class="feature-card">
+            <span class="feature-glyph glyph-sort" aria-hidden="true"><i></i><i></i><i></i></span>
+            <h3>Find the useful signal</h3>
+            <p>Typed decisions help identify urgency and items that may deserve a closer look.</p>
           </article>
-          <article class="step-card">
-            <span class="step-number">03</span>
-            <div class="step-icon icon-check" aria-hidden="true"><span></span></div>
+          <article class="feature-card">
+            <span class="feature-glyph glyph-review" aria-hidden="true"><i></i></span>
             <h3>Review before action</h3>
-            <p>See the suggested next steps, check lower-confidence decisions, and keep control of what happens next.</p>
+            <p>Open the original item, correct low-confidence decisions, and approve supported actions yourself.</p>
           </article>
         </div>
       </section>
 
-      <section class="walkthrough-section" id="walkthrough">
-        <div class="section-wrap walkthrough-layout">
-          <div class="walkthrough-copy">
-            <p class="eyebrow">Take a look around</p>
-            <h2>A short tour is<br>on the way.</h2>
-            <p>This space is ready for a recording of the app in action. It will show how a run comes together, how the review queue works, and what stays on your device.</p>
-            <span class="coming-soon"><span aria-hidden="true">◌</span> Walkthrough coming soon</span>
+      <section class="sources-section section-block">
+        <div class="section-wrap sources-layout">
+          <div class="sources-copy">
+            <p class="eyebrow">Works with your tools</p>
+            <h2>Choose only the sources you need.</h2>
+            <p>Integrations are optional and configured on your computer. Start with one source, or keep everything disconnected and try the offline sample run.</p>
+            <a class="text-link" href="getting-started.html#connectors">See setup details <span aria-hidden="true">↗</span></a>
           </div>
-          <div class="video-placeholder" role="img" aria-label="Placeholder for a Morning Agent walkthrough video">
-            <div class="video-window">
-              <div class="video-chrome"><span></span><span></span><span></span><b>Morning Agent · walkthrough</b></div>
-              <div class="video-content">
-                <div class="video-mark"><img src="assets/mark.svg" width="44" height="44" alt=""></div>
-                <p class="mini-label">A QUICK LOOK AT THE APP</p>
-                <h3>See your morning<br>come into focus.</h3>
-                <div class="video-progress" aria-hidden="true"><span></span></div>
-                <p class="video-note">Recording will be added here</p>
-              </div>
-              <div class="video-controls" aria-hidden="true"><span class="play-triangle"></span><span class="control-line"></span><span>--:--</span><span class="control-fullscreen">□</span></div>
-            </div>
-            <p class="video-caption">The walkthrough will be embedded here when it is ready.</p>
+          <div class="source-list" aria-label="Supported sources">
+            <div class="source-row"><span class="source-symbol source-gmail" aria-hidden="true">G</span><span><strong>Gmail</strong><small>Read-only API access</small></span><span class="source-category">Email</span></div>
+            <div class="source-row"><span class="source-symbol source-outlook" aria-hidden="true">O</span><span><strong>Outlook</strong><small>Read-only browser session</small></span><span class="source-category">Email</span></div>
+            <div class="source-row"><span class="source-symbol source-course" aria-hidden="true">M</span><span><strong>Moodle &amp; Ed Lessons</strong><small>Course updates and resources</small></span><span class="source-category">Study</span></div>
+            <div class="source-row"><span class="source-symbol source-github" aria-hidden="true">⌘</span><span><strong>GitHub</strong><small>Notifications and project activity</small></span><span class="source-category">Projects</span></div>
+            <div class="source-row"><span class="source-symbol source-news" aria-hidden="true">↗</span><span><strong>Files &amp; news</strong><small>Local downloads and RSS feeds</small></span><span class="source-category">Reading</span></div>
           </div>
         </div>
       </section>
 
-      <section class="section-wrap section-block sources-block">
-        <div class="sources-copy">
-          <p class="eyebrow">Fits around your tools</p>
-          <h2>Bring the morning<br>in from a few places.</h2>
-          <p>Each source is optional. Connect only the accounts and feeds you choose.</p>
-          <a class="text-link" href="getting-started.html#connectors">See setup details <span aria-hidden="true">↗</span></a>
-        </div>
-        <div class="source-list" aria-label="Supported sources">
-          <div class="source-row"><span class="source-symbol source-gmail" aria-hidden="true">G</span><div><strong>Gmail</strong><small>Read-only API access</small></div><span class="source-tag">EMAIL</span></div>
-          <div class="source-row"><span class="source-symbol source-outlook" aria-hidden="true">O</span><div><strong>Outlook</strong><small>Read-only web inbox</small></div><span class="source-tag">EMAIL</span></div>
-          <div class="source-row"><span class="source-symbol source-course" aria-hidden="true">M</span><div><strong>Moodle</strong><small>Course pages and resources</small></div><span class="source-tag">LEARNING</span></div>
-          <div class="source-row"><span class="source-symbol source-ed" aria-hidden="true">E</span><div><strong>Ed Lessons</strong><small>Course lesson updates</small></div><span class="source-tag">LEARNING</span></div>
-          <div class="source-row"><span class="source-symbol source-github" aria-hidden="true">⌘</span><div><strong>GitHub</strong><small>Notifications and project activity</small></div><span class="source-tag">PROJECTS</span></div>
-          <div class="source-row"><span class="source-symbol source-news" aria-hidden="true">↗</span><div><strong>Files &amp; news</strong><small>Local downloads and RSS feeds</small></div><span class="source-tag">READING</span></div>
-        </div>
-      </section>
-
-      <section class="privacy-band" id="privacy">
+      <section class="privacy-section section-block" id="privacy">
         <div class="section-wrap privacy-layout">
-          <div class="privacy-emblem" aria-hidden="true"><span>✳</span><i></i><i></i><i></i></div>
           <div class="privacy-copy">
-            <p class="eyebrow">Built to stay close to you</p>
-            <h2>Your morning is<br>your business.</h2>
-            <p>Morning Agent is a local app, not a hosted inbox. It keeps its history in a SQLite database on your computer. Browser sign-ins and tokens remain in local files you control.</p>
+            <p class="eyebrow">Private by design</p>
+            <h2>Your review stays on your Mac.</h2>
+            <p>Morning Agent stores collected items and review history in a local SQLite database. It has no project account or built-in analytics. Local Laya-MLX is available; if you configure TypeSafe Jev, the item text needed for classification is sent to that provider.</p>
             <a class="text-link" href="privacy.html">Read the privacy notice <span aria-hidden="true">↗</span></a>
           </div>
-          <div class="privacy-points">
-            <div><span class="point-index">A</span><p><strong>No project account</strong><small>There is no account with Morning Agent and no built-in analytics.</small></p></div>
-            <div><span class="point-index">B</span><p><strong>Optional local model</strong><small>Use Laya-MLX locally, or configure a remote decision provider.</small></p></div>
-            <div><span class="point-index">C</span><p><strong>Read first, act carefully</strong><small>Source collection is read-only. Supported task and calendar actions stay approval-gated.</small></p></div>
+          <div class="privacy-details">
+            <div><span class="privacy-index">A</span><div><strong>Local storage</strong><p>History and credentials are kept in files on your computer.</p></div></div>
+            <div><span class="privacy-index">B</span><div><strong>Optional connections</strong><p>Choose which accounts, folders, and feeds the app can read.</p></div></div>
+            <div><span class="privacy-index">C</span><div><strong>Remote provider disclosed</strong><p>Cloud classification is optional and may receive private item content.</p></div></div>
           </div>
         </div>
       </section>
 
-      <section class="section-wrap section-block faq-block" id="faq">
-        <div class="section-heading faq-heading">
-          <p class="eyebrow">Before you download</p>
-          <h2>A few useful details.</h2>
-        </div>
-        <div class="faq-list">
-          <details>
-            <summary>Is this a hosted service?</summary>
-            <p>No. Morning Agent runs on your computer. The website is only a product page; it does not connect to your accounts or show your dashboard.</p>
-          </details>
-          <details>
-            <summary>Is this a one-click Mac app?</summary>
-            <p>Not yet. The download is the project source code. You will need Node.js 20 or newer and a little Terminal setup. The app is macOS-first.</p>
-          </details>
-          <details>
-            <summary>Do I need to connect every source?</summary>
-            <p>No. Sources are optional. You configure the services you want to use, and some sources need their own account sign-in or API credentials.</p>
-          </details>
-          <details>
-            <summary>Can I use it at work or for a business?</summary>
-            <p>The current license permits noncommercial use only. Commercial use requires separate permission. See the <a href="terms.html">Terms and license notes</a>.</p>
-          </details>
+      <section class="section-wrap walkthrough-section" id="walkthrough">
+        <div class="walkthrough-copy">
+          <div><p class="eyebrow">See the app in action</p><h2>A walkthrough is coming.</h2><p>We’re making room for a short recording of setup, the morning review, and the choices that keep your data close.</p></div>
+          <div class="video-placeholder" role="img" aria-label="Morning Agent walkthrough video will be added here">
+            <div class="video-placeholder-inner">
+              <span class="video-play" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m9 6 10 6-10 6V6Z" fill="currentColor"/></svg></span>
+              <div><strong>Morning Agent walkthrough</strong><span>Your recording will appear here</span></div>
+              <span class="video-duration">Coming soon</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="final-cta section-wrap">
-        <div>
-          <p class="eyebrow">Make room for a better morning</p>
-          <h2>Start with what<br>matters today.</h2>
+      <section class="section-wrap faq-section" aria-labelledby="faq-title">
+        <div class="section-intro faq-intro"><div><p class="eyebrow">Before you download</p><h2 id="faq-title">Good to know.</h2></div></div>
+        <div class="faq-list">
+          <details><summary>Is Morning Agent a hosted service?</summary><p>No. The app runs on your computer. The landing page doesn’t connect to your accounts or show your dashboard.</p></details>
+          <details><summary>Is the download a Mac installer?</summary><p>Not yet. The download is source code. You’ll need Node.js 20 or later and a few Terminal commands; the app is macOS-first.</p></details>
+          <details><summary>Do I have to connect an account?</summary><p>No. Every source is optional. You can first run the offline sample workflow without connecting any accounts.</p></details>
+          <details><summary>Can I use it commercially?</summary><p>The current license permits noncommercial use. See the <a href="terms.html">Terms and license notes</a> for details.</p></details>
         </div>
-        <div class="final-cta-actions">
-          <a class="button button-light" href="getting-started.html">Get the source download <span aria-hidden="true">↗</span></a>
-          <p>Free for personal, noncommercial use.</p>
+      </section>
+
+      <section class="final-cta">
+        <div class="section-wrap final-cta-inner">
+          <div><p class="eyebrow">Start with a sample run</p><h2>Make space for what matters today.</h2><p>Download the source and see how Morning Agent fits your routine.</p></div>
+          <a class="button button-on-dark" href="getting-started.html">Get the source <span aria-hidden="true">↗</span></a>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div class="footer-main section-wrap">
-        <a class="brand footer-brand" href="./"><img src="assets/mark.svg" width="34" height="34" alt=""><span>Morning Agent</span></a>
-        <p>A clearer start, built for your own computer.</p>
-        <nav aria-label="Legal and project links">
-          <a href="terms.html">Terms</a>
-          <a href="privacy.html">Privacy</a>
-          <a href="disclaimer.html">Disclaimer</a>
-          <a href="https://github.com/shauryajain07/morning-agent">GitHub</a>
-        </nav>
+      <div class="section-wrap footer-main">
+        <a class="brand footer-brand" href="./"><img src="assets/mark.svg" width="28" height="28" alt=""><span>Morning Agent</span></a>
+        <p>Local software for a clearer start.</p>
+        <nav aria-label="Legal and project links"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="disclaimer.html">Disclaimer</a><a href="https://github.com/shauryajain07/morning-agent">GitHub</a></nav>
       </div>
-      <div class="footer-bottom section-wrap"><span>© 2026 Morning Agent</span><span>Independent project · Not affiliated with connected services</span></div>
+      <div class="section-wrap footer-bottom"><span>© 2026 Morning Agent</span><span>Independent project · Not affiliated with connected services</span></div>
     </footer>
   </body>
 </html>
